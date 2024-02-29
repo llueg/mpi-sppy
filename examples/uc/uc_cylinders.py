@@ -34,6 +34,7 @@ def _parse_args():
     cfg.xhatlooper_args()
     cfg.xhatshuffle_args()
     cfg.cross_scenario_cuts_args()
+    cfg.reduced_costs_args()
     cfg.add_to_config("ph_mipgaps_json",
                          description="json file with mipgap schedule (default None)",
                          domain=str,
@@ -66,6 +67,7 @@ def main():
     xhatlooper = cfg.xhatlooper
     xhatshuffle = cfg.xhatshuffle
     lagrangian = cfg.lagrangian
+    reduced_costs = cfg.reduced_costs
     fixer = cfg.fixer
     fixer_tol = cfg.fixer_tol
     cross_scenario_cuts = cfg.cross_scenario_cuts
@@ -163,6 +165,11 @@ def main():
     if cross_scenario_cuts:
         cross_scenario_cuts_spoke = vanilla.cross_scenario_cuts_spoke(*beans, scenario_creator_kwargs=scenario_creator_kwargs)
 
+    if reduced_costs:
+        reduced_costs_spoke = vanilla.reduced_costs_spoke(*beans,
+                                              scenario_creator_kwargs=scenario_creator_kwargs,
+                                              rho_setter = None)
+
     list_of_spoke_dict = list()
     if fwph:
         list_of_spoke_dict.append(fw_spoke)
@@ -174,6 +181,8 @@ def main():
         list_of_spoke_dict.append(xhatshuffle_spoke)
     if cross_scenario_cuts:
         list_of_spoke_dict.append(cross_scenario_cuts_spoke)
+    if reduced_costs:
+        list_of_spoke_dict.append(reduced_costs_spoke)
 
     wheel = WheelSpinner(hub_dict, list_of_spoke_dict)
     wheel.spin()

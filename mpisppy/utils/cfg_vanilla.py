@@ -26,6 +26,7 @@ from mpisppy.cylinders.xhatshufflelooper_bounder import XhatShuffleInnerBound
 from mpisppy.cylinders.lshaped_bounder import XhatLShapedInnerBound
 from mpisppy.cylinders.slam_heuristic import SlamMaxHeuristic, SlamMinHeuristic
 from mpisppy.cylinders.cross_scen_spoke import CrossScenarioCutSpoke
+from mpisppy.cylinders.reduced_costs_spoke import ReducedCostsSpoke
 from mpisppy.cylinders.hub import PHHub
 from mpisppy.cylinders.hub import APHHub
 from mpisppy.extensions.extension import MultiExtension
@@ -403,6 +404,30 @@ def lagrangian_spoke(
     add_ph_tracking(lagrangian_spoke, cfg, spoke=True)
 
     return lagrangian_spoke
+
+
+def reduced_costs_spoke(
+    cfg,
+    scenario_creator,
+    scenario_denouement,
+    all_scenario_names,
+    scenario_creator_kwargs=None,
+    rho_setter=None,
+    all_nodenames=None,
+):
+    rc_spoke = _PHBase_spoke_foundation(
+        ReducedCostsSpoke,
+        cfg,
+        scenario_creator,
+        scenario_denouement,
+        all_scenario_names,
+        scenario_creator_kwargs=scenario_creator_kwargs,
+        rho_setter=rho_setter,
+        all_nodenames=all_nodenames,
+    )
+    add_ph_tracking(rc_spoke, cfg, spoke=True)
+
+    return rc_spoke
 
 
 # special lagrangian: computes its own xhat and W (does not seem to work well)

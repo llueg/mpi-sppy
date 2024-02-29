@@ -177,12 +177,12 @@ class Fixer(mpisppy.extensions.extension.Extension):
                             self._vb("Fixed0 nb %s %s at %s" % \
                                      (s.name, xvar.name, str(xvar._value)))
                             was_fixed = True
-                        elif lb is not None and xb - xvar.lb < self.boundtol:
+                        elif lb is not None and xb - xvar.lb <= self.boundtol:
                             xvar.fix(xvar.lb)
                             self._vb("Fixed0 lb %s %s at %s" % \
                                      (s.name, xvar.name, str(xvar._value)))
                             was_fixed = True
-                        elif ub is not None and xvar.ub - xb < self.boundtol:
+                        elif ub is not None and xvar.ub - xb <= self.boundtol:
                             xvar.fix(xvar.ub)
                             self._vb("Fixed0 ub %s %s at %s" % \
                                      (s.name, xvar.name, str(xvar._value)))
@@ -266,13 +266,13 @@ class Fixer(mpisppy.extensions.extension.Extension):
                                      (s.name, xvar.name, str(xvar._value)))
                             was_fixed = True
                         elif lb is not None and lb < fx \
-                             and xb - xvar.lb < self.boundtol:
+                             and xb - xvar.lb <= self.boundtol:
                             xvar.fix(xvar.lb)
                             self._vb("Fixed lb %s %s at %s" % \
                                      (s.name, xvar.name, str(xvar._value)))
                             was_fixed = True
                         elif ub is not None and ub < fx \
-                             and xvar.ub - xb < self.boundtol:
+                             and xvar.ub - xb <= self.boundtol:
                             xvar.fix(xvar.ub)
                             self._vb("Fixed ub %s %s at %s" % \
                                      (s.name, xvar.name, str(xvar._value)))

@@ -431,6 +431,14 @@ class Config(pyofig.ConfigDict):
                             default=None)
 
 
+    def reduced_costs_args(self):
+
+        self.add_to_config('reduced_costs',
+                              description="have a reduced costs spoke",
+                              domain=bool,
+                              default=False)
+
+
     def lagranger_args(self):
 
         self.add_to_config('lagranger',

@@ -384,7 +384,7 @@ class PHBase(mpisppy.spopt.SPOpt):
         ci = 0 # Cache index
         for model in self.local_scenarios.values():
             for ndn_i in model._mpisppy_data.nonant_indices:
-                model._mpisppy_model.W[ndn_i].value = flat_list[ci]
+                model._mpisppy_model.W[ndn_i]._value = flat_list[ci]
                 ci += 1
 
     def _use_rho_setter(self, verbose):
