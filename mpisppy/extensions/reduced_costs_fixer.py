@@ -2,7 +2,7 @@
 # This software is distributed under the 3-clause BSD License.
 import numpy as np
 
-from pyomo.common.collections import ComponentSet
+from pyomo.common.collections import ComponentSet, ComponentMap
 
 from mpisppy.extensions.extension import Extension
 from mpisppy.cylinders.reduced_costs_spoke import ReducedCostsSpoke 
@@ -29,7 +29,7 @@ class ReducedCostsFixer(Extension):
         # TODO: may want a different one
         #       for iteration 0
         # TODO: seems very, very likely
-        self.fix_fraction_target = 0.1
+        self.fix_fraction_target = 0.0
 
         self.bound_tol = 1e-6
 
@@ -37,12 +37,21 @@ class ReducedCostsFixer(Extension):
         self._last_serial_number = -1
         self._total_fixed_vars = 0
         self._modeler_fixed_vars = ComponentSet()
+        self._integer_best_incumbent_to_fix = ComponentMap()
 
     def pre_iter0(self):
+        if self.opt.is_minimizing:
+            default_best_incumbent = float("-inf")
+            self._update_best = _update_best_cutoff_minimizing
+        else:
+            default_best_incumbent = float("inf")
+            self._update_best = _update_best_cutoff_maximizing
         for k,s in self.opt.local_scenarios.items():
             for ndn_i, xvar in s._mpisppy_data.nonant_indices.items():
                 if xvar.fixed:
                     self._modeler_fixed_vars.add(xvar)
+                elif xvar.is_integer():
+                    self._integer_best_incumbent_to_fix[xvar] = default_best_incumbent
     
     def initialize_spoke_indices(self):
         for (i, spoke) in enumerate(self.opt.spcomm.spokes):
@@ -56,7 +65,25 @@ class ReducedCostsFixer(Extension):
         print(f"serial_number: {serial_number}")
         if serial_number > self._last_serial_number:
             self._last_serial_number = serial_number
-            self.reduced_costs_fixing(spcomm.outerbound_receive_buffers[idx][1:-1])
+            reduced_costs = spcomm.outerbound_receive_buffers[idx][1:-1]
+            this_bound = spcomm.outerbound_receive_buffers[idx][0]
+            self.update_integer_var_cache(this_bound, reduced_costs)
+            self.reduced_costs_fixing(reduced_costs)
+
+    def update_integer_var_cache(self, this_bound, reduced_costs):
+        for k,s in self.opt.local_scenarios.items():
+            for ci, (ndn_i, xvar) in enumerate(s._mpisppy_data.nonant_indices.items()):
+                if xvar not in self._integer_best_incumbent_to_fix:
+                    continue
+                this_expected_rc = reduced_costs[ci]
+                if np.isnan(this_expected_rc):
+                    continue
+                self._integer_best_incumbent_to_fix[xvar] = self._update_best(
+                    self._integer_best_incumbent_to_fix[xvar],
+                    this_bound,
+                    this_expected_rc,
+                )
+                #print(f"{xvar.name}, cutoff: {self._integer_best_incumbent_to_fix[xvar]}")
 
     def reduced_costs_fixing(self, reduced_costs):
 
@@ -76,9 +103,9 @@ class ReducedCostsFixer(Extension):
 
         print(f"target rc: {target}")
 
-        abs_gap, _ = self.opt.spcomm.compute_gaps()
-
         raw_fixed_this_iter = 0
+        inf = float("inf")
+        spcomm = self.opt.spcomm
         for sub in self.opt.local_subproblems.values():
             persistent_solver = is_persistent(sub._solver_plugin)
             for sn in sub.scen_list:
@@ -105,15 +132,20 @@ class ReducedCostsFixer(Extension):
                                 print(f"unfixing var {xvar.name}; reduced cost is zero in LP-LR")
                         else:
                             xb = s._mpisppy_model.xbars[ndn_i].value
-                            if (this_expected_rc > target) or (this_expected_rc > abs_gap and xvar.is_integer()):
+                            # TODO: handle maximization case
+                            if (this_expected_rc > target) or (self._integer_best_incumbent_to_fix.get(xvar, -inf) > spcomm.BestInnerBound):
                                 if (reduced_costs[ci] > 0) and (xb - xvar.lb <= self.bound_tol):
                                     xvar.fix(xvar.lb)
                                     print(f"fixing var {xvar.name} to lb {xvar.lb}; reduced cost is {reduced_costs[ci]} LP-LR")
+                                    if xvar in self._integer_best_incumbent_to_fix:
+                                        print(f"\tcutoff objective value: {self._integer_best_incumbent_to_fix[xvar]}")
                                     update_var = True
                                     raw_fixed_this_iter += 1
                                 elif (reduced_costs[ci] < 0) and (xvar.ub - xb <= self.bound_tol):
                                     xvar.fix(xvar.ub)
                                     print(f"fixing var {xvar.name} to ub {xvar.ub}; reduced cost is {reduced_costs[ci]} LP-LR")
+                                    if xvar in self._integer_best_incumbent_to_fix:
+                                        print(f"\tcutoff objective value: {self._integer_best_incumbent_to_fix[xvar]}")
                                     update_var = True
                                     raw_fixed_this_iter += 1
                     if update_var and persistent_solver:
@@ -122,3 +154,19 @@ class ReducedCostsFixer(Extension):
         self._total_fixed_vars += raw_fixed_this_iter / len(self.opt.local_scenarios)
         if self.opt.cylinder_rank == 0:
             print(f"Unique vars fixed so far - {self._total_fixed_vars}")
+
+
+def _update_best_cutoff_minimizing(current_best, best_bound, rc):
+    if rc < 0: # at ub, so decreasing the var
+        new_best = best_bound - rc
+    else: # at lb, so increasing the var
+        new_best = best_bound + rc
+    return max(current_best, new_best)
+
+
+def _update_best_cutoff_maximizing(current_best, best_bound, rc):
+    if rc > 0: # at ub, so decreasing the var
+        new_best = best_bound - rc
+    else: # at lb, so increasing the var
+        new_best = best_bound + rc
+    return min(current_best, new_best)
