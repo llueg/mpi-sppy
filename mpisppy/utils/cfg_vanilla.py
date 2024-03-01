@@ -32,6 +32,7 @@ from mpisppy.cylinders.hub import APHHub
 from mpisppy.extensions.extension import MultiExtension
 from mpisppy.extensions.fixer import Fixer
 from mpisppy.extensions.cross_scen_extension import CrossScenarioExtension
+from mpisppy.extensions.reduced_costs_fixer import ReducedCostsFixer
 from mpisppy.utils.wxbarreader import WXBarReader
 from mpisppy.utils.wxbarwriter import WXBarWriter
 
@@ -193,6 +194,13 @@ def add_cross_scenario_cuts(hub_dict,
     hub_dict = extension_adder(hub_dict, CrossScenarioExtension)
     hub_dict["opt_kwargs"]["options"]["cross_scen_options"]\
             = {"check_bound_improve_iterations" : cfg.cross_scenario_iter_cnt}
+    return hub_dict
+
+def add_reduced_costs_fixer(hub_dict,
+                            cfg,
+                            ):
+    #WARNING: Do not use without a reduced_costs_spoke spoke
+    hub_dict = extension_adder(hub_dict, ReducedCostsFixer)
     return hub_dict
 
 def add_wxbar_read_write(hub_dict, cfg):

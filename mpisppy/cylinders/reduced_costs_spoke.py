@@ -73,7 +73,8 @@ class ReducedCostsSpoke(LagrangianOuterBound):
         rc = np.full(len(self.rc), np.nan)
         for sub in self.opt.local_subproblems.values():
             if is_persistent(sub._solver_plugin):
-                # TODO: only load nonants
+                # TODO: only load nonant's RC
+                # TODO: what happens with non-persistent solvers?
                 sub._solver_plugin.load_rc()
             for sn in sub.scen_list:
                 s = self.opt.local_scenarios[sn]
@@ -85,20 +86,22 @@ class ReducedCostsSpoke(LagrangianOuterBound):
                             rc[ci] = sub._mpisppy_probability * pyo.value(sub.rc[xvar])
                         elif xvar.ub - xb <= self.bound_tol:
                             rc[ci] = sub._mpisppy_probability * pyo.value(sub.rc[xvar])
-                        else:
-                            rc[ci] = sub._mpisppy_probability * pyo.value(sub.rc[xvar])
                     ci += 1
 
         self.cylinder_comm.Allreduce(rc, self.rc, op=MPI.SUM)
 
         if self.cylinder_rank == 0:
-            print("Expected reduced costs:")
+            print("Expected reduced costs sent:")
             ci = 0
+            printed = 0
             for sub in self.opt.local_subproblems.values():
                 for sn in sub.scen_list:
                     s = self.opt.local_scenarios[sn]
                     for ndn_i, xvar in s._mpisppy_data.nonant_indices.items():
                         this_expected_rc = self.rc[ci]
                         if not np.isnan(this_expected_rc):#and abs(this_expected_rc) > 1e-1*abs(self.hub_inner_bound - self.hub_outer_bound):
-                            print(f"{xvar.name}, rc: {this_expected_rc}, xbar: {s._mpisppy_model.xbars[ndn_i].value}")
+                            print(f"\t{xvar.name}, rc: {this_expected_rc}, xbar: {s._mpisppy_model.xbars[ndn_i].value}")
+                            printed += 1
                         ci += 1
+                        if printed > 5:
+                            break
