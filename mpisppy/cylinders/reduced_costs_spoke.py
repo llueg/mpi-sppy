@@ -18,18 +18,20 @@ class ReducedCostsSpoke(LagrangianOuterBound):
         if len(self.opt.local_scenarios) == 0:
             raise RuntimeError("Rank has zero local_scenarios")
 
-        vbuflen = 0
+        vbuflen = 2
         for s in self.opt.local_scenarios.values():
             vbuflen += len(s._mpisppy_data.nonant_indices)
 
-        self._make_windows(1 + vbuflen, vbuflen + 2)
-        self._locals = np.zeros(vbuflen + 2 + 1)
+        nonant_length = self.opt.nonant_length
+
+        self._make_windows(1 + nonant_length, vbuflen)
+        self._locals = np.zeros(vbuflen + 1)
         # over load the _bound attribute here
         # so the rest of the class works as expected
         # first float will be the bound we're sending
         # indices 1:-1 will be the reduced costs, and
         # the last index will be the serial number
-        self._bound = np.zeros(1 + vbuflen + 1)
+        self._bound = np.zeros(1 + nonant_length + 1)
 
     @property
     def rc(self):
@@ -66,11 +68,10 @@ class ReducedCostsSpoke(LagrangianOuterBound):
 
     def extract_and_store_reduced_costs(self):
         self.opt.Compute_Xbar()
-        ci = 0 # rc index
         # NaN will signal that the x values do not agree in
         # every scenario, we can't extract an expected reduced
         # cost
-        rc = np.full(len(self.rc), np.nan)
+        rc = np.zeros(len(self.rc))
         for sub in self.opt.local_subproblems.values():
             if is_persistent(sub._solver_plugin):
                 # TODO: only load nonant's RC
@@ -78,30 +79,33 @@ class ReducedCostsSpoke(LagrangianOuterBound):
                 sub._solver_plugin.load_rc()
             for sn in sub.scen_list:
                 s = self.opt.local_scenarios[sn]
-                for ndn_i, xvar in s._mpisppy_data.nonant_indices.items():
+                for ci, (ndn_i, xvar) in enumerate(s._mpisppy_data.nonant_indices.items()):
                     #print(f"{xvar.name}, rc: {pyo.value(sub.rc[xvar])}, val: {xvar.value}, lb: {xvar.lb}, ub: {xvar.ub} ")
-                    if not xvar.stale:
-                        xb = s._mpisppy_model.xbars[ndn_i].value
-                        if xb - xvar.lb <= self.bound_tol:
-                            rc[ci] = sub._mpisppy_probability * pyo.value(sub.rc[xvar])
-                        elif xvar.ub - xb <= self.bound_tol:
-                            rc[ci] = sub._mpisppy_probability * pyo.value(sub.rc[xvar])
-                    ci += 1
+                    # fixed by modeler
+                    if xvar.fixed:
+                        rc[ci] = np.nan
+                        continue
+                    xb = s._mpisppy_model.xbars[ndn_i].value
+                    if xb - xvar.lb <= self.bound_tol:
+                        if rc[ci] < 0: # prior was ub
+                            rc[ci] = np.nan
+                        else:
+                            rc[ci] += sub._mpisppy_probability * pyo.value(sub.rc[xvar])
+                    elif xvar.ub - xb <= self.bound_tol:
+                        if rc[ci] > 0: # prior was lb
+                            rc[ci] = np.nan
+                        else:
+                            rc[ci] += sub._mpisppy_probability * pyo.value(sub.rc[xvar])
 
         self.cylinder_comm.Allreduce(rc, self.rc, op=MPI.SUM)
 
-        if self.cylinder_rank == 0:
-            print("Expected reduced costs sent:")
-            ci = 0
-            printed = 0
-            for sub in self.opt.local_subproblems.values():
-                for sn in sub.scen_list:
-                    s = self.opt.local_scenarios[sn]
-                    for ndn_i, xvar in s._mpisppy_data.nonant_indices.items():
-                        this_expected_rc = self.rc[ci]
-                        if not np.isnan(this_expected_rc):#and abs(this_expected_rc) > 1e-1*abs(self.hub_inner_bound - self.hub_outer_bound):
-                            print(f"\t{xvar.name}, rc: {this_expected_rc}, xbar: {s._mpisppy_model.xbars[ndn_i].value}")
-                            printed += 1
-                        ci += 1
-                        if printed > 5:
-                            break
+        #if self.cylinder_rank == 0:
+        #    print("Expected reduced costs sent:")
+        #    for sub in self.opt.local_subproblems.values():
+        #        for sn in sub.scen_list:
+        #            s = self.opt.local_scenarios[sn]
+        #            for ci, (ndn_i, xvar) in enumerate(s._mpisppy_data.nonant_indices.items()):
+        #                this_expected_rc = self.rc[ci]
+        #                if not np.isnan(this_expected_rc):#and abs(this_expected_rc) > 1e-1*abs(self.hub_inner_bound - self.hub_outer_bound):
+        #                    print(f"\t{xvar.name}, rc: {this_expected_rc}, xbar: {s._mpisppy_model.xbars[ndn_i].value}")
+        #            break
