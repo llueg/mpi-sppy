@@ -174,6 +174,13 @@ class _BoundSpoke(Spoke):
         """
         self._make_windows(1, 2) # kill signals are accounted for in _make_window
         self._locals = np.zeros(0 + 3) # hub outer/inner bounds and kill signal
+        # set the initial local inner / outer bounds to a valid value
+        if self.opt.is_minimizing:
+            self._locals[-2] = math.inf
+            self._locals[-3] = -math.inf
+        else:
+            self._locals[-2] = -math.inf
+            self._locals[-3] = math.inf
         self._bound = np.zeros(1 + 1) # spoke bound + kill signal
 
     @property
@@ -233,6 +240,13 @@ class _BoundNonantLenSpoke(_BoundSpoke):
 
         self._make_windows(1, vbuflen)
         self._locals = np.zeros(vbuflen + 1)
+        # set the initial local inner / outer bounds to a valid value
+        if self.opt.is_minimizing:
+            self._locals[-2] = math.inf
+            self._locals[-3] = -math.inf
+        else:
+            self._locals[-2] = -math.inf
+            self._locals[-3] = math.inf
         self._bound = np.zeros(1 + 1)
 
 class InnerBoundSpoke(_BoundSpoke):

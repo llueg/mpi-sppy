@@ -15,7 +15,7 @@ import sys
 import pandas as pd
 from datetime import datetime as dt
 
-solver_name = "gurobi_persistent"
+solver_name = "xpress_persistent"
 if len(sys.argv) > 1:
     solver_name = sys.argv[1]
 
@@ -58,7 +58,7 @@ def egret_avail():
 def do_one(dirname, progname, np, argstring):
     """ return the code"""
     os.chdir(dirname)
-    runstring = "mpiexec {} -np {} python -m mpi4py {} {}".\
+    runstring = "mpiexec {} -np {} python -u {} {}".\
                 format(mpiexec_arg, np, progname, argstring)
     # The top process output seems to be cached by github actions
     # so we need oputput in the system call to help debug
@@ -151,6 +151,7 @@ def do_one_mmw(dirname, runefstring, npyfile, mmwargstring):
         os.remove(npyfile)
     os.chdir("..")
 
+'''
 do_one("farmer", "farmer_ef.py", 1,
        "1 3 {}".format(solver_name))
 # for farmer_cylinders, the first arg is num_scens and is required
@@ -241,9 +242,9 @@ do_one("farmer",
        "--BPL-c0 25 --BPL-eps 100 --confidence-level 0.95 --BM-vs-BPL BPL")
 
 do_one("netdes", "netdes_cylinders.py", 5,
-       "--max-iterations=3 --instance-name=network-10-20-L-01 "
-       "--solver-name={} --rel-gap=0.0 --default-rho=1 "
-       "--slammax --lagrangian --xhatshuffle --cross-scenario-cuts --max-solver-threads=2".format(solver_name))
+       "--max-iterations=10 --instance-name=network-10-20-L-01 "
+       "--solver-name={} --rel-gap=-1.0 --abs-gap=-1.0 --default-rho=5000 --intra-hub-conv-thresh=-0.1 "
+       "--slammax --reduced-costs --xhatshuffle --cross-scenario-cuts --max-solver-threads=1".format(solver_name))
 
 # sizes is slow for xpress so try linearizing the proximal term.
 do_one("sizes",
@@ -345,8 +346,10 @@ do_one("sizes",
        "--num-scens=3 --bundles-per-rank=0 --max-iterations=5 "
        "--iter0-mipgap=0.01 --iterk-mipgap=0.001 --linearize-proximal-terms "
        "--default-rho=1 --solver-name={} --display-progress".format(solver_name))
+'''
 
-if not nouc and egret_avail():
+if True and egret_avail():
+    '''
     print("\nSlow runs ahead...\n")
     # 3-scenario UC
     do_one("uc", "uc_ef.py", 1, solver_name+" 3")
@@ -362,12 +365,15 @@ if not nouc and egret_avail():
            "--bundles-per-rank=0 --max-iterations=5 "
            "--default-rho=1 --num-scens=3 --xhatlshaped "
            "--solver-name={} --max-solver-threads=1".format(solver_name))
+    '''
     do_one("uc", "uc_cylinders.py", 3,
-           "--run-aph --bundles-per-rank=0 --max-iterations=2 "
-           "--default-rho=1 --num-scens=3 --max-solver-threads=2 "
-           "--lagrangian-iter0-mipgap=1e-7 --lagrangian --xhatshuffle "
-           "--ph-mipgaps-json=phmipgaps.json "
+           "--bundles-per-rank=0 --max-iterations=10 "
+           "--default-rho=1 --num-scens=3 --max-solver-threads=1 "
+           "--reduced-costs --xhatshuffle "
+           "--rel-gap=0.0 --abs-gap=0.0 "
+           #"--ph-mipgaps-json=phmipgaps.json "
            "--solver-name={}".format(solver_name))
+    '''
     # as of May 2022, this one works well, but outputs some crazy messages
     do_one("uc", "uc_ama.py", 3,
            "--bundles-per-rank=0 --max-iterations=2 "
@@ -398,6 +404,7 @@ if not nouc and egret_avail():
            "--lagrangian-iter0-mipgap=1e-7 --cross-scenario-cuts "
            "--ph-mipgaps-json=phmipgaps.json --cross-scenario-iter-cnt=4 "
            "--solver-name={}".format(solver_name))
+    '''
 
 if len(badguys) > 0:
     print("\nBad Guys:")

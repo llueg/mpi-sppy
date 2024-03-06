@@ -20,6 +20,7 @@ from mpisppy.extensions.xhatclosest import XhatClosest
 from mpisppy.utils import config
 import mpisppy.utils.cfg_vanilla as vanilla
 from mpisppy.extensions.cross_scen_extension import CrossScenarioExtension
+from mpisppy.extensions.reduced_costs_fixer import ReducedCostsFixer
 
 def _parse_args():
     cfg = config.Config()
@@ -107,6 +108,8 @@ def main():
         ext_classes.append(Fixer)
     if cross_scenario_cuts:
         ext_classes.append(CrossScenarioExtension)
+    if reduced_costs:
+        ext_classes.append(ReducedCostsFixer)
     if cfg.xhat_closest_tree:
         ext_classes.append(XhatClosest)
 

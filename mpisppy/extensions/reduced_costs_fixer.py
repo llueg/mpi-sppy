@@ -36,22 +36,21 @@ class ReducedCostsFixer(Extension):
         # for updates
         self._last_serial_number = -1
         self._total_fixed_vars = 0
-        self._modeler_fixed_vars = ComponentSet()
-        self._integer_best_incumbent_to_fix = ComponentMap()
+        self._integer_proved_fixed_nonants = set()
 
     def pre_iter0(self):
-        if self.opt.is_minimizing:
-            default_best_incumbent = float("-inf")
-            self._update_best = _update_best_cutoff_minimizing
-        else:
-            default_best_incumbent = float("inf")
-            self._update_best = _update_best_cutoff_maximizing
+        self._modeler_fixed_nonants = set()
+        self._integer_nonants = []
+        self.nonant_length = self.opt.nonant_length
+
         for k,s in self.opt.local_scenarios.items():
             for ndn_i, xvar in s._mpisppy_data.nonant_indices.items():
                 if xvar.fixed:
-                    self._modeler_fixed_vars.add(xvar)
+                    self._modeler_fixed_nonants.add(ndn_i)
                 elif xvar.is_integer():
-                    self._integer_best_incumbent_to_fix[xvar] = default_best_incumbent
+                    self._integer_nonants.append(ndn_i)
+            break
+        print(f"Extension: nonant_length: {self.nonant_length}, integer_nonant_length: {len(self._integer_nonants)}")
     
     def initialize_spoke_indices(self):
         for (i, spoke) in enumerate(self.opt.spcomm.spokes):
@@ -65,25 +64,49 @@ class ReducedCostsFixer(Extension):
         print(f"serial_number: {serial_number}")
         if serial_number > self._last_serial_number:
             self._last_serial_number = serial_number
-            reduced_costs = spcomm.outerbound_receive_buffers[idx][1:-1]
+            reduced_costs = spcomm.outerbound_receive_buffers[idx][1:1+self.nonant_length]
+            integer_cutoffs = spcomm.outerbound_receive_buffers[idx][1+self.nonant_length:-1]
             this_bound = spcomm.outerbound_receive_buffers[idx][0]
-            self.update_integer_var_cache(this_bound, reduced_costs)
-            self.reduced_costs_fixing(reduced_costs)
+            print(f"in extension, rcs: {reduced_costs}")
+            print(f"in extension, cutoffs: {integer_cutoffs}")
+            self.integer_cutoff_fixing(integer_cutoffs)
+            #self.reduced_costs_fixing(reduced_costs)
 
-    def update_integer_var_cache(self, this_bound, reduced_costs):
-        for k,s in self.opt.local_scenarios.items():
-            for ci, (ndn_i, xvar) in enumerate(s._mpisppy_data.nonant_indices.items()):
-                if xvar not in self._integer_best_incumbent_to_fix:
-                    continue
-                this_expected_rc = reduced_costs[ci]
-                if np.isnan(this_expected_rc):
-                    continue
-                self._integer_best_incumbent_to_fix[xvar] = self._update_best(
-                    self._integer_best_incumbent_to_fix[xvar],
-                    this_bound,
-                    this_expected_rc,
-                )
-                #print(f"{xvar.name}, cutoff: {self._integer_best_incumbent_to_fix[xvar]}")
+    def integer_cutoff_fixing(self, integer_cutoffs):
+
+        raw_fixed_this_iter = 0
+        inner_bound = self.opt.spcomm.BestInnerBound
+        for sub in self.opt.local_subproblems.values():
+            persistent_solver = is_persistent(sub._solver_plugin)
+            for sn in sub.scen_list:
+                s = self.opt.local_scenarios[sn]
+                print(f"in scenario: {sn}")
+                for ci, ndn_i in enumerate(self._integer_nonants):
+                    # TODO: fix for maximization
+                    if ndn_i in self._integer_proved_fixed_nonants:
+                        continue
+                    update_var = False
+                    if integer_cutoffs[ci] > inner_bound:
+                        xb = s._mpisppy_model.xbars[ndn_i].value
+                        xvar = s._mpisppy_data.nonant_indices[ndn_i]
+                        if (xb - xvar.lb <= self.bound_tol):
+                            xvar.fix(xvar.lb)
+                            print(f"fixing var {xvar.name} to lb {xvar.lb}; cutoff is {integer_cutoffs[ci]} LP-LR")
+                            update_var = True
+                            raw_fixed_this_iter += 1
+                        elif (xvar.ub - xb <= self.bound_tol):
+                            xvar.fix(xvar.ub)
+                            print(f"fixing var {xvar.name} to ub {xvar.ub}; cutoff is {integer_cutoffs[ci]} LP-LR")
+                            update_var = True
+                            raw_fixed_this_iter += 1
+                        else:
+                            print(f"Could not fix {xvar.name} to bound; cutoff is {integer_cutoffs[ci]} LP-LR, xbar: {xb}")
+                    if update_var and persistent_solver:
+                        sub._solver_plugin.update_var(xvar)
+        self._total_fixed_vars += raw_fixed_this_iter / len(self.opt.local_scenarios)
+        if self.opt.cylinder_rank == 0:
+            print(f"Unique vars fixed so far - {self._total_fixed_vars}")
+
 
     def reduced_costs_fixing(self, reduced_costs):
 
@@ -112,7 +135,7 @@ class ReducedCostsFixer(Extension):
                 s = self.opt.local_scenarios[sn]
                 print(f"in scenario: {sn}")
                 for ci, (ndn_i, xvar) in enumerate(s._mpisppy_data.nonant_indices.items()):
-                    if xvar in self._modeler_fixed_vars:
+                    if ndn_i in self._modeler_fixed_nonants:
                         continue
                     this_expected_rc = abs_reduced_costs[ci]
                     update_var = False
@@ -133,19 +156,15 @@ class ReducedCostsFixer(Extension):
                         else:
                             xb = s._mpisppy_model.xbars[ndn_i].value
                             # TODO: handle maximization case
-                            if (this_expected_rc > target) or (self._integer_best_incumbent_to_fix.get(xvar, -inf) > spcomm.BestInnerBound):
+                            if (this_expected_rc >= target):
                                 if (reduced_costs[ci] > 0) and (xb - xvar.lb <= self.bound_tol):
                                     xvar.fix(xvar.lb)
                                     print(f"fixing var {xvar.name} to lb {xvar.lb}; reduced cost is {reduced_costs[ci]} LP-LR")
-                                    if xvar in self._integer_best_incumbent_to_fix:
-                                        print(f"\tcutoff objective value: {self._integer_best_incumbent_to_fix[xvar]}")
                                     update_var = True
                                     raw_fixed_this_iter += 1
                                 elif (reduced_costs[ci] < 0) and (xvar.ub - xb <= self.bound_tol):
                                     xvar.fix(xvar.ub)
                                     print(f"fixing var {xvar.name} to ub {xvar.ub}; reduced cost is {reduced_costs[ci]} LP-LR")
-                                    if xvar in self._integer_best_incumbent_to_fix:
-                                        print(f"\tcutoff objective value: {self._integer_best_incumbent_to_fix[xvar]}")
                                     update_var = True
                                     raw_fixed_this_iter += 1
                     if update_var and persistent_solver:
@@ -154,19 +173,3 @@ class ReducedCostsFixer(Extension):
         self._total_fixed_vars += raw_fixed_this_iter / len(self.opt.local_scenarios)
         if self.opt.cylinder_rank == 0:
             print(f"Unique vars fixed so far - {self._total_fixed_vars}")
-
-
-def _update_best_cutoff_minimizing(current_best, best_bound, rc):
-    if rc < 0: # at ub, so decreasing the var
-        new_best = best_bound - rc
-    else: # at lb, so increasing the var
-        new_best = best_bound + rc
-    return max(current_best, new_best)
-
-
-def _update_best_cutoff_maximizing(current_best, best_bound, rc):
-    if rc > 0: # at ub, so decreasing the var
-        new_best = best_bound - rc
-    else: # at lb, so increasing the var
-        new_best = best_bound + rc
-    return min(current_best, new_best)
