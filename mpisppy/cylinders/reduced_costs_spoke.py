@@ -135,7 +135,7 @@ class ReducedCostsSpoke(LagrangianOuterBound):
         # NaN will signal that the x values do not agree in
         # every scenario, we can't extract an expected reduced
         # cost
-        rc = np.zeros(len(self.rc))
+        rc = np.zeros(self.nonant_length)
         for sub in self.opt.local_subproblems.values():
             if is_persistent(sub._solver_plugin):
                 # TODO: only load nonant's RC
@@ -169,7 +169,11 @@ class ReducedCostsSpoke(LagrangianOuterBound):
                         else:
                             rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
 
-        self.cylinder_comm.Allreduce(rc, self.rc, op=MPI.SUM)
+        #print(f"rc: {rc}")
+        rcg = np.zeros(self.nonant_length)
+        self.cylinder_comm.Allreduce(rc, rcg, op=MPI.SUM)
+        self._bound[1:1+self.nonant_length] = rcg
+        print(f"in spoke before, rcs: {self._bound[1:1+self.nonant_length]}")
 
         if len(self._integer_best_incumbent_to_fix) == 0:
             return
@@ -180,12 +184,13 @@ class ReducedCostsSpoke(LagrangianOuterBound):
 
         # now try to prove things based on the best inner bound
         self.update_integer_var_cache(outer_bound, rc)
+        integer_cutoff = np.zeros(self.integer_nonant_length)
         for sub in self.opt.local_subproblems.values():
             persistent_solver = is_persistent(sub._solver_plugin)
             for sn in sub.scen_list:
                 s = self.opt.local_scenarios[sn]
                 for ci, (ndn_i, val) in enumerate(self._integer_best_incumbent_to_fix.items()):
-                    self.integer_cutoff[ci] = val
+                    integer_cutoff[ci] = val
                     #if val > outer_bound*(1+1e-4): 
                     #    print(f"var {s._mpisppy_data.nonant_indices[ndn_i].name}, cutoff is {val}")
                     #if val > inner_bound and ndn_i not in self._integer_proved_fixed_nonants:
@@ -198,8 +203,10 @@ class ReducedCostsSpoke(LagrangianOuterBound):
                     #        xvar.fix(xvar.ub)
                     #    sub._solver_plugin.update_var(xvar)
 
-        print(f"in spoke, rcs: {self.rc}")
-        print(f"in spoke, cutoffs: {self.integer_cutoff}")
+        print(f"in spoke, cutoffs 1: {integer_cutoff}")
+        self._bound[1+self.nonant_length:-1] = integer_cutoff
+        #print(f"in spoke, rcs: {self.rc}")
+        print(f"in spoke, cutoffs: {self._bound[1+self.nonant_length:-1]}")
 
 
         #if self.cylinder_rank == 0:
