@@ -94,14 +94,16 @@ class ReducedCostsSpoke(LagrangianOuterBound):
         # Scenarios are created here
         self.opt.PH_Prep(attach_prox=False)
         self.opt._reenable_W()
-        self.opt.subproblem_creation(verbose)
 
+        if self.opt._presolver is not None:
+            # do this before we relax the integer variables
+            self.opt._presolver.presolve()
 
         relax_integer_vars = pyo.TransformationFactory("core.relax_integer_vars")
         for s in self.opt.local_subproblems.values():
             relax_integer_vars.apply_to(s)
             s.rc = pyo.Suffix(direction=pyo.Suffix.IMPORT)
-        self.opt._create_solvers()
+        self.opt._create_solvers(presolve=False)
 
 
     def update_integer_var_cache(self, this_bound, reduced_costs):
