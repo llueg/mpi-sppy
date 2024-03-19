@@ -151,7 +151,6 @@ def do_one_mmw(dirname, runefstring, npyfile, mmwargstring):
         os.remove(npyfile)
     os.chdir("..")
 
-'''
 do_one("farmer", "farmer_ef.py", 1,
        "1 3 {}".format(solver_name))
 # for farmer_cylinders, the first arg is num_scens and is required
@@ -243,7 +242,7 @@ do_one("farmer",
 
 do_one("netdes", "netdes_cylinders.py", 5,
        "--max-iterations=10 --instance-name=network-10-20-L-01 "
-       "--solver-name={} --rel-gap=-1.0 --abs-gap=-1.0 --default-rho=5000 --intra-hub-conv-thresh=-0.1 "
+       "--solver-name={} --rel-gap=-1.0 --abs-gap=-1.0 --default-rho=5000 --intra-hub-conv-thresh=-0.1 --presolve"
        "--slammax --reduced-costs --xhatshuffle --cross-scenario-cuts --max-solver-threads=1".format(solver_name))
 
 # sizes is slow for xpress so try linearizing the proximal term.
@@ -346,7 +345,6 @@ do_one("sizes",
        "--num-scens=3 --bundles-per-rank=0 --max-iterations=5 "
        "--iter0-mipgap=0.01 --iterk-mipgap=0.001 --linearize-proximal-terms "
        "--default-rho=1 --solver-name={} --display-progress".format(solver_name))
-'''
 
 if True and egret_avail():
     '''
