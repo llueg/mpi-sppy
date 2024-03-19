@@ -83,7 +83,7 @@ class ReducedCostsFixer(Extension):
                 print(f"in scenario: {sn}")
                 for ci, ndn_i in enumerate(self._integer_nonants):
                     # TODO: fix for maximization
-                    if ndn_i in self._integer_proved_fixed_nonants:
+                    if (sn, ndn_i) in self._integer_proved_fixed_nonants:
                         continue
                     update_var = False
                     if integer_cutoffs[ci] > inner_bound:
@@ -94,11 +94,13 @@ class ReducedCostsFixer(Extension):
                             print(f"fixing var {xvar.name} to lb {xvar.lb}; cutoff is {integer_cutoffs[ci]} LP-LR")
                             update_var = True
                             raw_fixed_this_iter += 1
+                            self._integer_proved_fixed_nonants.add((sn, ndn_i))
                         elif (xvar.ub - xb <= self.bound_tol):
                             xvar.fix(xvar.ub)
                             print(f"fixing var {xvar.name} to ub {xvar.ub}; cutoff is {integer_cutoffs[ci]} LP-LR")
                             update_var = True
                             raw_fixed_this_iter += 1
+                            self._integer_proved_fixed_nonants.add((sn, ndn_i))
                         else:
                             print(f"Could not fix {xvar.name} to bound; cutoff is {integer_cutoffs[ci]} LP-LR, xbar: {xb}")
                     if update_var and persistent_solver:
