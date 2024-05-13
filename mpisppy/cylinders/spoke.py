@@ -12,7 +12,7 @@ import mpisppy.utils.sputils as sputils
 
 from pyomo.environ import ComponentMap, Var
 from mpisppy import MPI
-from mpisppy.cylinders.spcommunicator import SPCommunicator
+from mpisppy.cylinders.spcommunicator import SPCommunicator, communicator_array
 
 
 class ConvergerSpokeType(enum.Enum):
@@ -173,15 +173,8 @@ class _BoundSpoke(Spoke):
             look for a kill signal
         """
         self._make_windows(1, 2) # kill signals are accounted for in _make_window
-        self._locals = np.zeros(0 + 3) # hub outer/inner bounds and kill signal
-        # set the initial local inner / outer bounds to a valid value
-        if self.opt.is_minimizing:
-            self._locals[-2] = math.inf
-            self._locals[-3] = -math.inf
-        else:
-            self._locals[-2] = -math.inf
-            self._locals[-3] = math.inf
-        self._bound = np.zeros(1 + 1) # spoke bound + kill signal
+        self._bound = communicator_array(1) # spoke bound + kill signal
+        self._locals = communicator_array(2) # hub outer/inner bounds and kill signal
 
     @property
     def bound(self):
@@ -239,15 +232,9 @@ class _BoundNonantLenSpoke(_BoundSpoke):
             vbuflen += len(s._mpisppy_data.nonant_indices)
 
         self._make_windows(1, vbuflen)
-        self._locals = np.zeros(vbuflen + 1)
-        # set the initial local inner / outer bounds to a valid value
-        if self.opt.is_minimizing:
-            self._locals[-2] = math.inf
-            self._locals[-3] = -math.inf
-        else:
-            self._locals[-2] = -math.inf
-            self._locals[-3] = math.inf
-        self._bound = np.zeros(1 + 1)
+        self._bound = communicator_array(1)
+        self._locals = communicator_array(vbuflen)
+
 
 class InnerBoundSpoke(_BoundSpoke):
     """ For Spokes that provide an inner bound through self.bound to the
