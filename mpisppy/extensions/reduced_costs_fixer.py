@@ -73,6 +73,11 @@ class ReducedCostsFixer(Extension):
             # if self.opt.cylinder_rank == 0: print(f"in extension, cutoffs: {integer_cutoffs}")
             self.integer_cutoff_fixing(integer_cutoffs)
             self.reduced_costs_fixing(reduced_costs)
+        else:
+            if self.opt.cylinder_rank == 0:
+                print(f"Total unique vars fixed by reduced cost: {int(round(self._proved_fixed_vars))}")
+                print("No new reduced costs!")
+                print(f"Total unique vars fixed by heuristic: {int(round(self._heuristic_fixed_vars))}")
 
     def integer_cutoff_fixing(self, integer_cutoffs):
 
@@ -112,7 +117,7 @@ class ReducedCostsFixer(Extension):
                         sub._solver_plugin.update_var(xvar)
         self._proved_fixed_vars += raw_fixed_this_iter / len(self.opt.local_scenarios)
         if self.opt.cylinder_rank == 0:
-            print(f"Total unique vars fixed by reduced cost: {self._proved_fixed_vars}")
+            print(f"Total unique vars fixed by reduced cost: {int(round(self._proved_fixed_vars))}")
 
 
     def reduced_costs_fixing(self, reduced_costs):
@@ -131,8 +136,8 @@ class ReducedCostsFixer(Extension):
         if target < self.zero_rc_tol:
             target = self.zero_rc_tol
 
-        if self.verbose and self.opt.cylinder_rank == 0:
-            print(f"target rc: {target}")
+        if self.opt.cylinder_rank == 0:
+            print(f"Heuristic fixing reduced cost cutoff: {target}")
 
         raw_fixed_this_iter = 0
         inf = float("inf")
@@ -183,4 +188,4 @@ class ReducedCostsFixer(Extension):
 
         self._heuristic_fixed_vars += raw_fixed_this_iter / len(self.opt.local_scenarios)
         if self.opt.cylinder_rank == 0:
-            print(f"Total unique vars fixed by heuristic: {self._heuristic_fixed_vars}")
+            print(f"Total unique vars fixed by heuristic: {int(round(self._heuristic_fixed_vars))}")
