@@ -65,7 +65,7 @@ class ReducedCostsSpoke(LagrangianOuterBound):
         # indices 1:-1 will be the reduced costs, and
         # the last index will be the serial number
         self._bound = np.zeros(1 + self.nonant_length + self.integer_nonant_length + 1)
-        print(f"nonant_length: {self.nonant_length}, integer_nonant_length: {self.integer_nonant_length}")
+        # print(f"nonant_length: {self.nonant_length}, integer_nonant_length: {self.integer_nonant_length}")
 
     @property
     def rc(self):
@@ -121,7 +121,7 @@ class ReducedCostsSpoke(LagrangianOuterBound):
                     this_bound,
                     this_expected_rc,
                 )
-                #print(f"{xvar.name}, cutoff: {self._integer_best_incumbent_to_fix[xvar]}")
+                # print(f"{xvar.name}, cutoff: {self._integer_best_incumbent_to_fix[xvar]}")
             break
 
     def lagrangian(self):
@@ -173,14 +173,14 @@ class ReducedCostsSpoke(LagrangianOuterBound):
         rcg = np.zeros(self.nonant_length)
         self.cylinder_comm.Allreduce(rc, rcg, op=MPI.SUM)
         self._bound[1:1+self.nonant_length] = rcg
-        print(f"in spoke before, rcs: {self._bound[1:1+self.nonant_length]}")
+        # if self.opt.cylinder_rank == 0: print(f"in spoke before, rcs: {self._bound[1:1+self.nonant_length]}")
 
         if len(self._integer_best_incumbent_to_fix) == 0:
             return
 
         inner_bound = self.hub_inner_bound
-        print(f"spoke inner_bound: {inner_bound}")
-        print(f"this outer_bound: {outer_bound}")
+        # if self.opt.cylinder_rank == 0: print(f"spoke inner_bound: {inner_bound}")
+        # if self.opt.cylinder_rank == 0: print(f"this outer_bound: {outer_bound}")
 
         # now try to prove things based on the best inner bound
         self.update_integer_var_cache(outer_bound, rc)
@@ -203,10 +203,10 @@ class ReducedCostsSpoke(LagrangianOuterBound):
                     #        xvar.fix(xvar.ub)
                     #    sub._solver_plugin.update_var(xvar)
 
-        print(f"in spoke, cutoffs 1: {integer_cutoff}")
+        # if self.opt.cylinder_rank == 0: print(f"in spoke, cutoffs: {integer_cutoff}")
         self._bound[1+self.nonant_length:-1] = integer_cutoff
-        #print(f"in spoke, rcs: {self.rc}")
-        print(f"in spoke, cutoffs: {self._bound[1+self.nonant_length:-1]}")
+        # if self.opt.cylinder_rank == 0: print(f"in spoke, rcs: {self.rc}")
+        # if self.opt.cylinder_rank == 0: print(f"in spoke, cutoffs: {self._bound[1+self.nonant_length:-1]}")
 
 
         #if self.cylinder_rank == 0:
