@@ -4,6 +4,7 @@ import math
 import pyomo.environ as pyo
 from pyomo.common.collections import ComponentSet
 import numpy as np
+from mpisppy.cylinders.spcommunicator import communicator_array
 from mpisppy.cylinders.lagrangian_bounder import LagrangianOuterBound
 from mpisppy.utils.sputils import is_persistent 
 from mpisppy import MPI
@@ -51,20 +52,13 @@ class ReducedCostsSpoke(LagrangianOuterBound):
         self.integer_nonant_length = len(self._integer_best_incumbent_to_fix)
 
         self._make_windows(1 + self.nonant_length + self.integer_nonant_length, vbuflen)
-        self._locals = np.zeros(vbuflen + 1)
-        # set the initial local inner / outer bounds to a valid value
-        if self.opt.is_minimizing:
-            self._locals[-2] = math.inf
-            self._locals[-3] = -math.inf
-        else:
-            self._locals[-2] = -math.inf
-            self._locals[-3] = math.inf
+        self._locals = communicator_array(vbuflen)
         # over load the _bound attribute here
         # so the rest of the class works as expected
         # first float will be the bound we're sending
         # indices 1:-1 will be the reduced costs, and
         # the last index will be the serial number
-        self._bound = np.zeros(1 + self.nonant_length + self.integer_nonant_length + 1)
+        self._bound = communicator_array(1 + self.nonant_length + self.integer_nonant_length)
         # print(f"nonant_length: {self.nonant_length}, integer_nonant_length: {self.integer_nonant_length}")
 
     @property
