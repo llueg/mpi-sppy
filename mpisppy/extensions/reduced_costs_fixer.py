@@ -13,7 +13,7 @@ class ReducedCostsFixer(Extension):
     def __init__(self, spobj):
         super().__init__(spobj)
         # TODO: expose options
-        self.verbose = False
+        self.verbose = True
 
         # reduced costs less than
         # this in absolute value
@@ -145,20 +145,30 @@ class ReducedCostsFixer(Extension):
                     if is_minimizing:
                         # var at lb
                         if this_expected_rc > 0:
-                            new_ub = xvar.lb - (inner_bound - outer_bound)/ this_expected_rc
-                            if new_ub < xvar.ub:
-                                xvar.setub(new_ub)
+                            new_ub = xvar.lb + (inner_bound - outer_bound)/ this_expected_rc
+                            old_ub = xvar.ub
+                            if new_ub < old_ub:
+                                if xvar in self._integer_nonants:
+                                    new_ub = np.floor(new_ub)
+                                    xvar.setub(new_ub)
+                                else:
+                                    xvar.setub(new_ub)
                                 if self.verbose and self.opt.cylinder_rank == 0:
-                                    print(f"tightening ub of var {xvar.name} to {new_ub}; reduced cost is {this_expected_rc}")
+                                    print(f"tightening ub of var {xvar.name} to {new_ub} from {old_ub}; reduced cost is {this_expected_rc}")
                                 update_var = True
                                 bounds_reduced_this_iter += 1
                         # var at ub
                         elif this_expected_rc < 0:
                             new_lb = xvar.ub + (inner_bound - outer_bound)/ this_expected_rc
-                            if new_lb > xvar.lb:
-                                xvar.setlb(new_lb)
+                            old_lb = xvar.lb
+                            if new_lb > old_lb:
+                                if xvar in self._integer_nonants:
+                                    new_lb = np.ceil(new_lb)
+                                    xvar.setlb(new_lb)
+                                else:
+                                    xvar.setlb(new_lb)
                                 if self.verbose and self.opt.cylinder_rank == 0:
-                                    print(f"tightening lb of var {xvar.name} to {new_lb}; reduced cost is {this_expected_rc}")
+                                    print(f"tightening lb of var {xvar.name} to {new_lb} from {old_lb}; reduced cost is {this_expected_rc}")
                                 update_var = True
                                 bounds_reduced_this_iter += 1
 
