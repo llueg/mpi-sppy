@@ -73,6 +73,7 @@ class ReducedCostsFixer(Extension):
             # if self.opt.cylinder_rank == 0: print(f"in extension, cutoffs: {integer_cutoffs}")
             self.integer_cutoff_fixing(integer_cutoffs)
             self.reduced_costs_fixing(reduced_costs)
+            self.reduced_costs_bounds_tightening(reduced_costs)
         else:
             if self.opt.cylinder_rank == 0:
                 print(f"Total unique vars fixed by reduced cost: {int(round(self._proved_fixed_vars))}")
@@ -118,6 +119,57 @@ class ReducedCostsFixer(Extension):
         self._proved_fixed_vars += raw_fixed_this_iter / len(self.opt.local_scenarios)
         if self.opt.cylinder_rank == 0:
             print(f"Total unique vars fixed by reduced cost: {int(round(self._proved_fixed_vars))}")
+
+
+    def reduced_costs_bounds_tightening(self, reduced_costs):
+
+        bounds_reduced_this_iter = 0
+        inner_bound = self.opt.spcomm.BestInnerBound
+        outer_bound = self.opt.spcomm.BestOuterBound
+        is_minimizing = self.opt.is_minimizing
+        if np.isinf(inner_bound) or np.isinf(outer_bound):
+            return
+        
+        for sub in self.opt.local_subproblems.values():
+            persistent_solver = is_persistent(sub._solver_plugin)
+            for sn in sub.scen_list:
+                s = self.opt.local_scenarios[sn]
+                for ci, (ndn_i, xvar) in enumerate(s._mpisppy_data.nonant_indices.items()):
+                    if ndn_i in self._modeler_fixed_nonants:
+                        continue
+                    this_expected_rc = reduced_costs[ci]
+                    update_var = False
+                    if np.isnan(this_expected_rc) or np.isinf(this_expected_rc):
+                        continue
+
+                    if is_minimizing:
+                        # var at lb
+                        if this_expected_rc > 0:
+                            new_ub = xvar.lb - (inner_bound - outer_bound)/ this_expected_rc
+                            if new_ub < xvar.ub:
+                                xvar.setub(new_ub)
+                                if self.verbose and self.opt.cylinder_rank == 0:
+                                    print(f"tightening ub of var {xvar.name} to {new_ub}; reduced cost is {this_expected_rc}")
+                                update_var = True
+                                bounds_reduced_this_iter += 1
+                        # var at ub
+                        elif this_expected_rc < 0:
+                            new_lb = xvar.ub + (inner_bound - outer_bound)/ this_expected_rc
+                            if new_lb > xvar.lb:
+                                xvar.setlb(new_lb)
+                                if self.verbose and self.opt.cylinder_rank == 0:
+                                    print(f"tightening lb of var {xvar.name} to {new_lb}; reduced cost is {this_expected_rc}")
+                                update_var = True
+                                bounds_reduced_this_iter += 1
+
+                    if update_var and persistent_solver:
+                        sub._solver_plugin.update_var(xvar)
+
+        total_bounds_tightened = bounds_reduced_this_iter / len(self.opt.local_scenarios)
+        if self.opt.cylinder_rank == 0:
+            print(f"Total bounds tightened by reduced cost: {int(round(total_bounds_tightened))}")
+
+
 
 
     def reduced_costs_fixing(self, reduced_costs):

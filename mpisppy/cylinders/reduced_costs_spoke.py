@@ -129,12 +129,24 @@ class ReducedCostsSpoke(LagrangianOuterBound):
         # NaN will signal that the x values do not agree in
         # every scenario, we can't extract an expected reduced
         # cost
+        is_minimizing = self.opt.is_minimizing
         rc = np.zeros(self.nonant_length)
+        # -1: close to lb, 1: close to ub, 0: not encoutered
+        close_to_lb_or_ub = np.zeros(self.nonant_length)
+        num_total_scenarios = sum(len(sub.scen_list) for sub in self.opt.local_subproblems.values())
+
         for sub in self.opt.local_subproblems.values():
             if is_persistent(sub._solver_plugin):
                 # TODO: only load nonant's RC
-                # TODO: what happens with non-persistent solvers?
-                sub._solver_plugin.load_rc()
+                # TODO: what happens with non-persistent solvers? 
+                # - if rc is accepted as a model suffix by the solver (e.g. gurobi shell), it is loaded in postsolve
+                # - if not, the solver should throiw an error
+                # - direct solvers seem to behave the same as persistent solvers
+                # GurobiDirect needs vars_to_load argument
+                # XpressDirect loads for all vars by default
+                vars_to_load = [x for sn in sub.scen_list for _, x in self.opt.local_scenarios[sn]._mpisppy_data.nonant_indices.items()]
+                sub._solver_plugin.load_rc(vars_to_load=vars_to_load)
+
             for sn in sub.scen_list:
                 s = self.opt.local_scenarios[sn]
                 for ci, (ndn_i, xvar) in enumerate(s._mpisppy_data.nonant_indices.items()):
@@ -145,27 +157,62 @@ class ReducedCostsSpoke(LagrangianOuterBound):
                         continue
                     if ndn_i in self._integer_proved_fixed_nonants:
                         # TODO: needs to be fixed for maximization problems
+                        #lb = xvar.lb if is_minimizing else xvar.ub
+                        #lim = math.inf if is_minimizing else -math.inf
                         if xvar.value == xvar.lb:
-                            rc[ci] = math.inf
+                            rc[ci] = math.inf if is_minimizing else -math.inf
                         else:
-                            rc[ci] = -math.inf
+                            rc[ci] = -math.inf if is_minimizing else math.inf
                         continue
                     xb = s._mpisppy_model.xbars[ndn_i].value
                     # TODO: needs to be fixed for maximization problems
-                    if xb - xvar.lb <= self.bound_tol:
-                        if rc[ci] < 0: # prior was ub
-                            rc[ci] = np.nan
+                    if is_minimizing:
+                        if xb - xvar.lb <= self.bound_tol:
+                            # check if var at different bound before
+                            if close_to_lb_or_ub[ci] > 0 or np.isnan(rc[ci]):
+                                rc[ci] = np.nan
+                                close_to_lb_or_ub[ci] = np.nan
+                            else:
+                                close_to_lb_or_ub[ci] -= 1
+                                # TODO: should this be the prob of the scenario, not the subproblem?
+                                rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
+                        elif xvar.ub - xb <= self.bound_tol:
+                            if close_to_lb_or_ub[ci] < 0 or np.isnan(rc[ci]):
+                                rc[ci] = np.nan
+                                close_to_lb_or_ub[ci] = np.nan
+                            else:
+                                close_to_lb_or_ub[ci] += 1
+                                rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
+                        # not close to either bound -> rc = nan?
                         else:
-                            rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
-                    elif xvar.ub - xb <= self.bound_tol:
-                        if rc[ci] > 0: # prior was lb
                             rc[ci] = np.nan
+                            close_to_lb_or_ub[ci] = np.nan
+                    else:
+                        if xb - xvar.lb <= self.bound_tol:
+                            if close_to_lb_or_ub[ci] > 0 or np.isnan(rc[ci]):
+                                rc[ci] = np.nan
+                                close_to_lb_or_ub[ci] = np.nan
+                            else:
+                                close_to_lb_or_ub[ci] -= 1
+                                rc[ci] -= sub._mpisppy_probability * sub.rc[xvar]
+                        elif xvar.ub - xb <= self.bound_tol:
+                            if close_to_lb_or_ub[ci] < 0 or np.isnan(rc[ci]):
+                                rc[ci] = np.nan
+                                close_to_lb_or_ub[ci] = np.nan
+                            else:
+                                close_to_lb_or_ub[ci] -= 1
+                                rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
                         else:
-                            rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
+                            rc[ci] = np.nan
+                            close_to_lb_or_ub[ci] = np.nan
 
         #print(f"rc: {rc}")
+        g_lb_or_ub = np.zeros(self.nonant_length)
+        self.cylinder_comm.Allreduce(close_to_lb_or_ub, g_lb_or_ub, op=MPI.SUM)
+        inconsistent_bounds = np.asarray(np.abs(g_lb_or_ub) != num_total_scenarios).nonzero()
         rcg = np.zeros(self.nonant_length)
         self.cylinder_comm.Allreduce(rc, rcg, op=MPI.SUM)
+        rcg[inconsistent_bounds] = np.nan
         self._bound[1:1+self.nonant_length] = rcg
         # if self.opt.cylinder_rank == 0: print(f"in spoke before, rcs: {self._bound[1:1+self.nonant_length]}")
 
@@ -220,7 +267,7 @@ def _update_best_cutoff_minimizing(current_best, best_bound, rc):
         new_best = best_bound - rc
     else: # at lb, so increasing the var
         new_best = best_bound + rc
-    return max(current_best, new_best)
+    return max(current_best, new_best) # max not needed as always new_best >= current_best ?
 
 
 def _update_best_cutoff_maximizing(current_best, best_bound, rc):
