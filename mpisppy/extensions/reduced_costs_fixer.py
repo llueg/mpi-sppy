@@ -13,26 +13,37 @@ class ReducedCostsFixer(Extension):
     def __init__(self, spobj):
         super().__init__(spobj)
         # TODO: expose options
-        self.verbose = False
+        ph_options = spobj.options
+        rc_options = ph_options['rc_options']
+        verbose = ph_options['verbose'] or rc_options['verbose']
+        self.verbose = verbose
+
+        self._use_rc_bt = rc_options['use_rc_bt']
 
         # reduced costs less than
         # this in absolute value
         # will be considered 0
-        self.zero_rc_tol = 1e-6
+        self.zero_rc_tol = rc_options['zero_rc_tol']
 
-        # Percentage of variables which
-        # are at the bound we will target
-        # to fix. We never fix varibles
-        # with reduced costs less than
-        # the `zero_rc_tol` in absolute
-        # value
 
+        self._use_rc_fixer = rc_options['use_rc_fixer']
+        # Percentage of variables which are at the bound we will target
+        # to fix. We never fix varibles with reduced costs less than
+        # the `zero_rc_tol` in absolute value
         # TODO: may want a different one
         #       for iteration 0
         # TODO: seems very, very likely
-        self.fix_fraction_target = 0.8
+        self._fix_fraction_target_iter0 = rc_options['fix_fraction_target_iter0']
+        self._fix_fraction_target_iterK = rc_options['fix_fraction_target_iterK']
+        self.fix_fraction_target = self._fix_fraction_target_iter0
 
-        self.bound_tol = 1e-6
+        self.bound_tol = rc_options['bound_tol']
+
+        if not (self._use_rc_bt or self._use_rc_fixer) and \
+            self.opt.cylinder_rank == 0:
+            print(f"Warning: ReducedCostsFixer will be idle. Enable use_rc_bt or use_rc_fixer in options.")
+
+        self._options = rc_options
 
         # for updates
         self._last_serial_number = -1
@@ -54,6 +65,9 @@ class ReducedCostsFixer(Extension):
             break
         # print(f"Extension: nonant_length: {self.nonant_length}, integer_nonant_length: {len(self._integer_nonants)}")
     
+    def post_iter0(self):
+        self.fix_fraction_target = self._fix_fraction_target_iterK
+
     def initialize_spoke_indices(self):
         for (i, spoke) in enumerate(self.opt.spcomm.spokes):
             if spoke["spoke_class"] == ReducedCostsSpoke:
@@ -72,14 +86,13 @@ class ReducedCostsFixer(Extension):
             #this_inner_bound = spcomm.innerbound_
             # if self.opt.cylinder_rank == 0: print(f"in extension, rcs: {reduced_costs}")
             # if self.opt.cylinder_rank == 0: print(f"in extension, cutoffs: {integer_cutoffs}")
-            # TODO: turn off for experiments w/ bt
+
             # can be removed once BT works
             #self.integer_cutoff_fixing(integer_cutoffs)
 
             self.reduced_costs_bounds_tightening(reduced_costs, this_outer_bound)
-
-            # TODO: turn off for experiments w/ bt
-            self.reduced_costs_fixing(reduced_costs)
+            if self._use_rc_fixer:
+                self.reduced_costs_fixing(reduced_costs)
 
         else:
             if self.opt.cylinder_rank == 0:

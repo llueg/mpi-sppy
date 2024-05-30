@@ -124,6 +124,16 @@ def main():
             "boundtol": fixer_tol,
             "id_fix_list_fct": uc.id_fix_list_fct,
         }
+    if reduced_costs:
+        hub_dict["opt_kwargs"]["options"]["rc_options"] = {
+            "verbose": cfg.rc_verbose,
+            "use_rc_fixer": cfg.rc_fixer,
+            "zero_rc_tol": cfg.rc_zero_rc_tol,
+            "fix_fraction_target_iter0": cfg.rc_fix_fraction_iter0,
+            "fix_fraction_target_iterK": cfg.rc_fix_fraction_iterK,
+            "use_rc_bt": cfg.rc_bound_tightening,
+            "bound_tol": cfg.rc_bound_tol,
+        }
     if cfg.xhat_closest_tree:
         hub_dict["opt_kwargs"]["options"]["xhat_closest_options"] = {
             "xhat_solver_options" : dict(),
