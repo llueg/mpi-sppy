@@ -13,7 +13,7 @@ class ReducedCostsFixer(Extension):
     def __init__(self, spobj):
         super().__init__(spobj)
         # TODO: expose options
-        self.verbose = True
+        self.verbose = False
 
         # reduced costs less than
         # this in absolute value
@@ -74,10 +74,13 @@ class ReducedCostsFixer(Extension):
             # if self.opt.cylinder_rank == 0: print(f"in extension, cutoffs: {integer_cutoffs}")
             # TODO: turn off for experiments w/ bt
             # can be removed once BT works
-            self.integer_cutoff_fixing(integer_cutoffs)
+            #self.integer_cutoff_fixing(integer_cutoffs)
+
+            self.reduced_costs_bounds_tightening(reduced_costs, this_outer_bound)
+
             # TODO: turn off for experiments w/ bt
             self.reduced_costs_fixing(reduced_costs)
-            self.reduced_costs_bounds_tightening(reduced_costs, this_outer_bound)
+
         else:
             if self.opt.cylinder_rank == 0:
                 print(f"Total unique vars fixed by reduced cost: {int(round(self._proved_fixed_vars))}")
@@ -116,8 +119,9 @@ class ReducedCostsFixer(Extension):
                             raw_fixed_this_iter += 1
                             self._integer_proved_fixed_nonants.add((sn, ndn_i))
                         else:
-                            if self.verbose and self.opt.cylinder_rank == 0:
-                                print(f"Could not fix {xvar.name} to bound; cutoff is {integer_cutoffs[ci]} LP-LR, xbar: {xb}")
+                            pass
+                            # if self.verbose and self.opt.cylinder_rank == 0:
+                            #     print(f"Could not fix {xvar.name} to bound; cutoff is {integer_cutoffs[ci]} LP-LR, xbar: {xb}")
                     if update_var and persistent_solver:
                         sub._solver_plugin.update_var(xvar)
         self._proved_fixed_vars += raw_fixed_this_iter / len(self.opt.local_scenarios)
@@ -132,6 +136,8 @@ class ReducedCostsFixer(Extension):
         outer_bound = this_outer_bound
         is_minimizing = self.opt.is_minimizing
         if np.isinf(inner_bound) or np.isinf(outer_bound):
+            if self.opt.cylinder_rank == 0:
+                print(f"Total bounds tightened by reduced cost: 0 (no inner or outer bound available)")
             return
         
         for sub in self.opt.local_subproblems.values():
@@ -152,7 +158,7 @@ class ReducedCostsFixer(Extension):
                             new_ub = xvar.lb + (inner_bound - outer_bound)/ this_expected_rc
                             old_ub = xvar.ub
                             if new_ub < old_ub:
-                                if xvar in self._integer_nonants:
+                                if ndn_i in self._integer_nonants:
                                     new_ub = np.floor(new_ub)
                                     xvar.setub(new_ub)
                                 else:
@@ -162,14 +168,15 @@ class ReducedCostsFixer(Extension):
                                 update_var = True
                                 bounds_reduced_this_iter += 1
                             else:
-                                if self.verbose and self.opt.cylinder_rank == 0:
-                                    print(f"Could not tighten ub of var {xvar.name} to {new_ub} from {old_ub}; reduced cost is {this_expected_rc}")
+                                pass
+                                # if self.verbose and self.opt.cylinder_rank == 0:
+                                #     print(f"Could not tighten ub of var {xvar.name} to {new_ub} from {old_ub}; reduced cost is {this_expected_rc}")
                         # var at ub
                         elif this_expected_rc < 0:
                             new_lb = xvar.ub + (inner_bound - outer_bound)/ this_expected_rc
                             old_lb = xvar.lb
                             if new_lb > old_lb:
-                                if xvar in self._integer_nonants:
+                                if ndn_i in self._integer_nonants:
                                     new_lb = np.ceil(new_lb)
                                     xvar.setlb(new_lb)
                                 else:
@@ -178,6 +185,10 @@ class ReducedCostsFixer(Extension):
                                     print(f"tightening lb of var {xvar.name} to {new_lb} from {old_lb}; reduced cost is {this_expected_rc}")
                                 update_var = True
                                 bounds_reduced_this_iter += 1
+                            else:
+                                pass
+                                # if self.verbose and self.opt.cylinder_rank == 0:
+                                #     print(f"Could not tighten lb of var {xvar.name} to {new_lb} from {old_lb}; reduced cost is {this_expected_rc}")
 
                     if update_var and persistent_solver:
                         sub._solver_plugin.update_var(xvar)
