@@ -68,12 +68,16 @@ class ReducedCostsFixer(Extension):
             self._last_serial_number = serial_number
             reduced_costs = spcomm.outerbound_receive_buffers[idx][1:1+self.nonant_length]
             integer_cutoffs = spcomm.outerbound_receive_buffers[idx][1+self.nonant_length:-1]
-            this_bound = spcomm.outerbound_receive_buffers[idx][0]
+            this_outer_bound = spcomm.outerbound_receive_buffers[idx][0]
+            #this_inner_bound = spcomm.innerbound_
             # if self.opt.cylinder_rank == 0: print(f"in extension, rcs: {reduced_costs}")
             # if self.opt.cylinder_rank == 0: print(f"in extension, cutoffs: {integer_cutoffs}")
+            # TODO: turn off for experiments w/ bt
+            # can be removed once BT works
             self.integer_cutoff_fixing(integer_cutoffs)
+            # TODO: turn off for experiments w/ bt
             self.reduced_costs_fixing(reduced_costs)
-            self.reduced_costs_bounds_tightening(reduced_costs)
+            self.reduced_costs_bounds_tightening(reduced_costs, this_outer_bound)
         else:
             if self.opt.cylinder_rank == 0:
                 print(f"Total unique vars fixed by reduced cost: {int(round(self._proved_fixed_vars))}")
@@ -121,11 +125,11 @@ class ReducedCostsFixer(Extension):
             print(f"Total unique vars fixed by reduced cost: {int(round(self._proved_fixed_vars))}")
 
 
-    def reduced_costs_bounds_tightening(self, reduced_costs):
+    def reduced_costs_bounds_tightening(self, reduced_costs, this_outer_bound):
 
         bounds_reduced_this_iter = 0
         inner_bound = self.opt.spcomm.BestInnerBound
-        outer_bound = self.opt.spcomm.BestOuterBound
+        outer_bound = this_outer_bound
         is_minimizing = self.opt.is_minimizing
         if np.isinf(inner_bound) or np.isinf(outer_bound):
             return
@@ -157,6 +161,9 @@ class ReducedCostsFixer(Extension):
                                     print(f"tightening ub of var {xvar.name} to {new_ub} from {old_ub}; reduced cost is {this_expected_rc}")
                                 update_var = True
                                 bounds_reduced_this_iter += 1
+                            else:
+                                if self.verbose and self.opt.cylinder_rank == 0:
+                                    print(f"Could not tighten ub of var {xvar.name} to {new_ub} from {old_ub}; reduced cost is {this_expected_rc}")
                         # var at ub
                         elif this_expected_rc < 0:
                             new_lb = xvar.ub + (inner_bound - outer_bound)/ this_expected_rc

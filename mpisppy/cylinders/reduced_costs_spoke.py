@@ -175,6 +175,7 @@ class ReducedCostsSpoke(LagrangianOuterBound):
                             else:
                                 close_to_lb_or_ub[ci] -= 1
                                 # TODO: should this be the prob of the scenario, not the subproblem?
+                                # TODO: do not multiply by prob
                                 rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
                         elif xvar.ub - xb <= self.bound_tol:
                             if close_to_lb_or_ub[ci] < 0 or np.isnan(rc[ci]):
@@ -182,6 +183,7 @@ class ReducedCostsSpoke(LagrangianOuterBound):
                                 close_to_lb_or_ub[ci] = np.nan
                             else:
                                 close_to_lb_or_ub[ci] += 1
+                                # TODO: do not multiply by prob
                                 rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
                         # not close to either bound -> rc = nan?
                         else:
@@ -194,6 +196,7 @@ class ReducedCostsSpoke(LagrangianOuterBound):
                                 close_to_lb_or_ub[ci] = np.nan
                             else:
                                 close_to_lb_or_ub[ci] -= 1
+                                # TODO: do not multiply by prob
                                 rc[ci] -= sub._mpisppy_probability * sub.rc[xvar]
                         elif xvar.ub - xb <= self.bound_tol:
                             if close_to_lb_or_ub[ci] < 0 or np.isnan(rc[ci]):
@@ -201,6 +204,7 @@ class ReducedCostsSpoke(LagrangianOuterBound):
                                 close_to_lb_or_ub[ci] = np.nan
                             else:
                                 close_to_lb_or_ub[ci] -= 1
+                                # TODO: do not multiply by prob
                                 rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
                         else:
                             rc[ci] = np.nan
