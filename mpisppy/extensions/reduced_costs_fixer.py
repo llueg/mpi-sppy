@@ -203,6 +203,45 @@ class ReducedCostsFixer(Extension):
                                 # if self.verbose and self.opt.cylinder_rank == 0:
                                 #     print(f"Could not tighten lb of var {xvar.name} to {new_lb} from {old_lb}; reduced cost is {this_expected_rc}")
 
+                    else:
+                        # TODO: check this for correctness
+                        # var at lb
+                        if this_expected_rc < 0:
+                            new_ub = xvar.lb - (outer_bound - inner_bound)/ this_expected_rc
+                            old_ub = xvar.ub
+                            if new_ub < old_ub:
+                                if ndn_i in self._integer_nonants:
+                                    new_ub = np.floor(new_ub)
+                                    xvar.setub(new_ub)
+                                else:
+                                    xvar.setub(new_ub)
+                                if self.verbose and self.opt.cylinder_rank == 0:
+                                    print(f"tightening ub of var {xvar.name} to {new_ub} from {old_ub}; reduced cost is {this_expected_rc}")
+                                update_var = True
+                                bounds_reduced_this_iter += 1
+                            else:
+                                pass
+                                # if self.verbose and self.opt.cylinder_rank == 0:
+                                #     print(f"Could not tighten ub of var {xvar.name} to {new_ub} from {old_ub}; reduced cost is {this_expected_rc}")
+                        # var at ub
+                        elif this_expected_rc > 0:
+                            new_lb = xvar.ub - (outer_bound - inner_bound)/ this_expected_rc
+                            old_lb = xvar.lb
+                            if new_lb > old_lb:
+                                if ndn_i in self._integer_nonants:
+                                    new_lb = np.ceil(new_lb)
+                                    xvar.setlb(new_lb)
+                                else:
+                                    xvar.setlb(new_lb)
+                                if self.verbose and self.opt.cylinder_rank == 0:
+                                    print(f"tightening lb of var {xvar.name} to {new_lb} from {old_lb}; reduced cost is {this_expected_rc}")
+                                update_var = True
+                                bounds_reduced_this_iter += 1
+                            else:
+                                pass
+                                # if self.verbose and self.opt.cylinder_rank == 0:
+                                #     print(f"Could not tighten lb of var {xvar.name} to {new_lb} from {old_lb}; reduced cost is {this_expected_rc}")
+
                     if update_var and persistent_solver:
                         sub._solver_plugin.update_var(xvar)
 
