@@ -168,7 +168,8 @@ class ReducedCostsSpoke(LagrangianOuterBound):
                     # TODO: Does this eliminate need for close_to_lb_or_ub?
                     consensus_threshold = 1e-6
                     if var_xb > consensus_threshold:
-                        print(f"Variance of xbar for {xvar.name} is {var_xb}, consensus not achieved")
+                        if self.opt.cylinder_rank == 0 and self.opt.options['verbose']:
+                            print(f"Variance of xbar for {xvar.name} is {var_xb}, consensus not achieved")
                         rc[ci] = np.nan
                         continue
 
