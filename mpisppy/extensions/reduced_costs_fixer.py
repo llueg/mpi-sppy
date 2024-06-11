@@ -251,6 +251,10 @@ class ReducedCostsFixer(Extension):
 
     def reduced_costs_fixing(self, reduced_costs):
 
+        if np.all(np.isnan(reduced_costs)):
+            print("All reduced costs are nan, heuristic fixing will not be applied")
+            return
+        
         # compute the quantile target
         abs_reduced_costs = np.abs(reduced_costs)
 
@@ -258,8 +262,17 @@ class ReducedCostsFixer(Extension):
         #       presently fixed variables, such that
         #       it becomes more agressive with the same
         #       fixed fraction as the iterations continue
-        if self.fix_fraction_target > 0:
-            target = np.nanquantile(abs_reduced_costs, 1 - self.fix_fraction_target, method="median_unbiased")
+        # Could do this by adjusting fix fraction based on total #vars fixed by rc already
+        if progressive_fix_target := False:
+            already_fixed_frac = np.minimum(self._heuristic_fixed_vars / self.nonant_length, 1)
+            additional_fix_frac = (1- already_fixed_frac) * self.fix_fraction_target
+            fix_fraction_target = already_fixed_frac + additional_fix_frac
+        else:
+            fix_fraction_target = self.fix_fraction_target
+
+        
+        if fix_fraction_target > 0:
+            target = np.nanquantile(abs_reduced_costs, 1 - fix_fraction_target, method="median_unbiased")
         else:
             target = float("inf")
         if target < self.zero_rc_tol:
@@ -298,20 +311,35 @@ class ReducedCostsFixer(Extension):
                                     print(f"unfixing var {xvar.name}; reduced cost is zero in LP-LR")
                         else:
                             xb = s._mpisppy_model.xbars[ndn_i].value
-                            # TODO: handle maximization case
-                            if (this_expected_rc >= target):
-                                if (reduced_costs[ci] > 0) and (xb - xvar.lb <= self.bound_tol):
-                                    xvar.fix(xvar.lb)
-                                    if self.verbose and self.opt.cylinder_rank == 0:
-                                        print(f"fixing var {xvar.name} to lb {xvar.lb}; reduced cost is {reduced_costs[ci]} LP-LR")
-                                    update_var = True
-                                    raw_fixed_this_iter += 1
-                                elif (reduced_costs[ci] < 0) and (xvar.ub - xb <= self.bound_tol):
-                                    xvar.fix(xvar.ub)
-                                    if self.verbose and self.opt.cylinder_rank == 0:
-                                        print(f"fixing var {xvar.name} to ub {xvar.ub}; reduced cost is {reduced_costs[ci]} LP-LR")
-                                    update_var = True
-                                    raw_fixed_this_iter += 1
+                            if self.opt.is_minimizing:
+                                if (this_expected_rc >= target):
+                                    if (reduced_costs[ci] > 0) and (xb - xvar.lb <= self.bound_tol):
+                                        xvar.fix(xvar.lb)
+                                        if self.verbose and self.opt.cylinder_rank == 0:
+                                            print(f"fixing var {xvar.name} to lb {xvar.lb}; reduced cost is {reduced_costs[ci]} LP-LR")
+                                        update_var = True
+                                        raw_fixed_this_iter += 1
+                                    elif (reduced_costs[ci] < 0) and (xvar.ub - xb <= self.bound_tol):
+                                        xvar.fix(xvar.ub)
+                                        if self.verbose and self.opt.cylinder_rank == 0:
+                                            print(f"fixing var {xvar.name} to ub {xvar.ub}; reduced cost is {reduced_costs[ci]} LP-LR")
+                                        update_var = True
+                                        raw_fixed_this_iter += 1
+                            else:
+                                if (this_expected_rc >= target):
+                                    if (reduced_costs[ci] < 0) and (xb - xvar.lb <= self.bound_tol):
+                                        xvar.fix(xvar.lb)
+                                        if self.verbose and self.opt.cylinder_rank == 0:
+                                            print(f"fixing var {xvar.name} to lb {xvar.lb}; reduced cost is {reduced_costs[ci]} LP-LR")
+                                        update_var = True
+                                        raw_fixed_this_iter += 1
+                                    elif (reduced_costs[ci] > 0) and (xvar.ub - xb <= self.bound_tol):
+                                        xvar.fix(xvar.ub)
+                                        if self.verbose and self.opt.cylinder_rank == 0:
+                                            print(f"fixing var {xvar.name} to ub {xvar.ub}; reduced cost is {reduced_costs[ci]} LP-LR")
+                                        update_var = True
+                                        raw_fixed_this_iter += 1
+                    
                     if update_var and persistent_solver:
                         sub._solver_plugin.update_var(xvar)
 
