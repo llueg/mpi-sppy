@@ -12,7 +12,9 @@ from mpisppy import MPI
 class ReducedCostsSpoke(LagrangianOuterBound):
 
     converger_spoke_char = 'R'
+    # TODO: set option
     bound_tol = 1e-6
+    consensus_threshold = 1e-3
 
     def make_windows(self):
         if not hasattr(self.opt, "local_scenarios"):
@@ -37,6 +39,7 @@ class ReducedCostsSpoke(LagrangianOuterBound):
 
         self._modeler_fixed_nonants = set()
         #self._integer_best_incumbent_to_fix = {}
+        # TODO: This is not populated anywhere
         self._integer_proved_fixed_nonants = set()
 
         for k,s in self.opt.local_scenarios.items():
@@ -146,6 +149,7 @@ class ReducedCostsSpoke(LagrangianOuterBound):
                 # XpressDirect loads for all vars by default
                 vars_to_load = [x for sn in sub.scen_list for _, x in self.opt.local_scenarios[sn]._mpisppy_data.nonant_indices.items()]
                 sub._solver_plugin.load_rc(vars_to_load=vars_to_load)
+            # TODO: warning ?
 
             for sn in sub.scen_list:
                 s = self.opt.local_scenarios[sn]
@@ -165,13 +169,12 @@ class ReducedCostsSpoke(LagrangianOuterBound):
                     # check variance of xb to determine if consensus achieved
                     var_xb = pyo.value(s._mpisppy_model.xsqbars[ndn_i]) - xb * xb
                     # TODO: How to set this?
-                    # TODO: Does this eliminate need for close_to_lb_or_ub?
-                    consensus_threshold = 1e-6
-                    if var_xb > consensus_threshold:
-                        if self.opt.cylinder_rank == 0 and self.opt.options['verbose']:
-                            print(f"Variance of xbar for {xvar.name} is {var_xb}, consensus not achieved")
-                        rc[ci] = np.nan
-                        continue
+                    # TODO: Does this eliminate need for close_to_lb_or_ub? --yes
+                    # if var_xb  > self.consensus_threshold * self.consensus_threshold:
+                    #     if self.opt.cylinder_rank == 0 and self.opt.options['verbose']:
+                    #         print(f"Variance of xbar for {xvar.name} is {var_xb}, consensus not achieved")
+                    #     rc[ci] = np.nan
+                    #     continue
 
                     if is_minimizing:
                         if xb - xvar.lb <= self.bound_tol:
