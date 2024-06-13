@@ -86,7 +86,6 @@ class ReducedCostsFixer(Extension):
 
             # can be removed once BT works
             #self.integer_cutoff_fixing(integer_cutoffs)
-
             self.reduced_costs_bounds_tightening(reduced_costs, this_outer_bound)
             if self._use_rc_fixer:
                 self.reduced_costs_fixing(reduced_costs)
@@ -146,6 +145,7 @@ class ReducedCostsFixer(Extension):
         outer_bound = this_outer_bound
         is_minimizing = self.opt.is_minimizing
         if np.isinf(inner_bound) or np.isinf(outer_bound):
+            # TODO: keep track of and skip already fixed variables, i.e. lb=ub
             if self.opt.cylinder_rank == 0:
                 print(f"Total bounds tightened by reduced cost: 0 (no inner or outer bound available)")
             return

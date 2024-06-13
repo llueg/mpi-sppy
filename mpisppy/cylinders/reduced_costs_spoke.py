@@ -135,8 +135,8 @@ class ReducedCostsSpoke(LagrangianOuterBound):
         is_minimizing = self.opt.is_minimizing
         rc = np.zeros(self.nonant_length)
         # -1: close to lb, 1: close to ub, 0: not encoutered
-        close_to_lb_or_ub = np.zeros(self.nonant_length)
-        num_total_scenarios = sum(len(sub.scen_list) for sub in self.opt.local_subproblems.values())
+        #close_to_lb_or_ub = np.zeros(self.nonant_length)
+        #num_total_scenarios = sum(len(sub.scen_list) for sub in self.opt.local_subproblems.values())
 
         for sub in self.opt.local_subproblems.values():
             if is_persistent(sub._solver_plugin):
@@ -170,60 +170,62 @@ class ReducedCostsSpoke(LagrangianOuterBound):
                     var_xb = pyo.value(s._mpisppy_model.xsqbars[ndn_i]) - xb * xb
                     # TODO: How to set this?
                     # TODO: Does this eliminate need for close_to_lb_or_ub? --yes
-                    # if var_xb  > self.consensus_threshold * self.consensus_threshold:
-                    #     if self.opt.cylinder_rank == 0 and self.opt.options['verbose']:
-                    #         print(f"Variance of xbar for {xvar.name} is {var_xb}, consensus not achieved")
-                    #     rc[ci] = np.nan
-                    #     continue
+                    if var_xb  > self.consensus_threshold * self.consensus_threshold:
+                        #if self.opt.cylinder_rank == 0 and self.opt.options['verbose']:
+                        #print(f"Variance of xbar for {xvar.name} is {var_xb}, consensus not achieved")
+                        # if self.opt.cylinder_rank == 0:
+                        #     print(f'rc of var {xvar.name}  is {sub.rc[xvar]}')
+                        rc[ci] = np.nan
+                        continue
 
                     if is_minimizing:
                         if xb - xvar.lb <= self.bound_tol:
                             # check if var at different bound before
-                            if close_to_lb_or_ub[ci] > 0 or np.isnan(rc[ci]):
-                                rc[ci] = np.nan
-                                close_to_lb_or_ub[ci] = np.nan
-                            else:
-                                close_to_lb_or_ub[ci] -= 1
+                            # if close_to_lb_or_ub[ci] > 0 or np.isnan(rc[ci]):
+                            #     rc[ci] = np.nan
+                            #     close_to_lb_or_ub[ci] = np.nan
+                            # else:
+                            #     close_to_lb_or_ub[ci] -= 1
                                 # We use prob of subproblem to get appropriate rc for overall solution
-                                rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
+                            rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
                         elif xvar.ub - xb <= self.bound_tol:
-                            if close_to_lb_or_ub[ci] < 0 or np.isnan(rc[ci]):
-                                rc[ci] = np.nan
-                                close_to_lb_or_ub[ci] = np.nan
-                            else:
-                                close_to_lb_or_ub[ci] += 1
-                                rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
+                            # if close_to_lb_or_ub[ci] < 0 or np.isnan(rc[ci]):
+                            #     rc[ci] = np.nan
+                            #     close_to_lb_or_ub[ci] = np.nan
+                            # else:
+                            #     close_to_lb_or_ub[ci] += 1
+                            rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
                         # not close to either bound -> rc = nan?
                         else:
                             rc[ci] = np.nan
-                            close_to_lb_or_ub[ci] = np.nan
+                            #close_to_lb_or_ub[ci] = np.nan
                     # maximizing
                     else:
                         if xb - xvar.lb <= self.bound_tol:
-                            if close_to_lb_or_ub[ci] > 0 or np.isnan(rc[ci]):
-                                rc[ci] = np.nan
-                                close_to_lb_or_ub[ci] = np.nan
-                            else:
-                                close_to_lb_or_ub[ci] -= 1
-                                rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
+                            # if close_to_lb_or_ub[ci] > 0 or np.isnan(rc[ci]):
+                            #     rc[ci] = np.nan
+                            #     close_to_lb_or_ub[ci] = np.nan
+                            # else:
+                            #     close_to_lb_or_ub[ci] -= 1
+                            rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
                         elif xvar.ub - xb <= self.bound_tol:
-                            if close_to_lb_or_ub[ci] < 0 or np.isnan(rc[ci]):
-                                rc[ci] = np.nan
-                                close_to_lb_or_ub[ci] = np.nan
-                            else:
-                                close_to_lb_or_ub[ci] -= 1
-                                rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
+                            # if close_to_lb_or_ub[ci] < 0 or np.isnan(rc[ci]):
+                            #     rc[ci] = np.nan
+                            #     close_to_lb_or_ub[ci] = np.nan
+                            # else:
+                            #     close_to_lb_or_ub[ci] -= 1
+                            rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
                         else:
                             rc[ci] = np.nan
-                            close_to_lb_or_ub[ci] = np.nan
+                            #close_to_lb_or_ub[ci] = np.nan
 
         #print(f"rc: {rc}")
-        g_lb_or_ub = np.zeros(self.nonant_length)
-        self.cylinder_comm.Allreduce(close_to_lb_or_ub, g_lb_or_ub, op=MPI.SUM)
-        inconsistent_bounds = np.asarray(np.abs(g_lb_or_ub) != num_total_scenarios).nonzero()
+        #g_lb_or_ub = np.zeros(self.nonant_length)
+        #self.cylinder_comm.Allreduce(close_to_lb_or_ub, g_lb_or_ub, op=MPI.SUM)
+        #inconsistent_bounds = np.asarray(np.abs(g_lb_or_ub) != num_total_scenarios).nonzero()
         rcg = np.zeros(self.nonant_length)
         self.cylinder_comm.Allreduce(rc, rcg, op=MPI.SUM)
-        rcg[inconsistent_bounds] = np.nan
+        #rcg[inconsistent_bounds] = np.nan
         self._bound[1:1+self.nonant_length] = rcg
         # if self.opt.cylinder_rank == 0: print(f"in spoke before, rcs: {self._bound[1:1+self.nonant_length]}")
 
