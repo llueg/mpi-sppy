@@ -36,6 +36,7 @@ def _parse_args():
     cfg.xhatshuffle_args()
     cfg.cross_scenario_cuts_args()
     cfg.reduced_costs_args()
+    cfg.mip_options()
     cfg.add_to_config("ph_mipgaps_json",
                          description="json file with mipgap schedule (default None)",
                          domain=str,
