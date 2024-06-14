@@ -11,10 +11,22 @@ from mpisppy import MPI
 
 class ReducedCostsSpoke(LagrangianOuterBound):
 
-    converger_spoke_char = 'R'
-    # TODO: set option
-    bound_tol = 1e-6
-    consensus_threshold = 1e-3
+    # converger_spoke_char = 'R'
+    # # TODO: set option
+    # bound_tol = 1e-6
+    # consensus_threshold = 1e-3
+    #th = self.opt.options['threshold']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # This doesn't seem to be available in the spokes
+        #self.bound_tol = self.opt.options['rc_options']['bound_tol']
+        self.bound_tol = 1e-6
+        self.consensus_threshold = 1e-3
+        self.converger_spoke_char = 'R'
+        # TODO: Could give above options thorugh config, but is it important enough?
+        #options = self.opt.options
+
 
     def make_windows(self):
         if not hasattr(self.opt, "local_scenarios"):
@@ -28,6 +40,7 @@ class ReducedCostsSpoke(LagrangianOuterBound):
             vbuflen += len(s._mpisppy_data.nonant_indices)
 
         self.nonant_length = self.opt.nonant_length
+
 
         # collect the vars original integer for later, and count how many
         # if self.opt.is_minimizing:

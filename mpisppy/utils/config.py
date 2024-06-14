@@ -469,6 +469,11 @@ class Config(pyofig.ConfigDict):
                             domain=float,
                             default=0.8)
         
+        self.add_to_config('rc_progressive_fix_fraction',
+                            description="increase fix fraction in each iteration",
+                            domain=bool,
+                            default=False)
+        
         self.add_to_config('rc_bound_tightening',
                             description="use reduced cost bound tightening",
                             domain=bool,

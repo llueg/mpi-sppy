@@ -131,6 +131,7 @@ def main():
             "zero_rc_tol": cfg.rc_zero_rc_tol,
             "fix_fraction_target_iter0": cfg.rc_fix_fraction_iter0,
             "fix_fraction_target_iterK": cfg.rc_fix_fraction_iterK,
+            "progressive_fix_fraction": cfg.rc_progressive_fix_fraction,
             "use_rc_bt": cfg.rc_bound_tightening,
             "bound_tol": cfg.rc_bound_tol,
         }

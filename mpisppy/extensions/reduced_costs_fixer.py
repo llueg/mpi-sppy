@@ -32,6 +32,7 @@ class ReducedCostsFixer(Extension):
         # the `zero_rc_tol` in absolute value
         self._fix_fraction_target_iter0 = rc_options['fix_fraction_target_iter0']
         self._fix_fraction_target_iterK = rc_options['fix_fraction_target_iterK']
+        self._progressive_fix_fraction = rc_options['progressive_fix_fraction']
         self.fix_fraction_target = self._fix_fraction_target_iter0
 
         self.bound_tol = rc_options['bound_tol']
@@ -263,7 +264,7 @@ class ReducedCostsFixer(Extension):
         #       it becomes more agressive with the same
         #       fixed fraction as the iterations continue
         # Could do this by adjusting fix fraction based on total #vars fixed by rc already
-        if progressive_fix_target := False:
+        if self._progressive_fix_fraction:
             already_fixed_frac = np.minimum(self._heuristic_fixed_vars / self.nonant_length, 1)
             additional_fix_frac = (1- already_fixed_frac) * self.fix_fraction_target
             fix_fraction_target = already_fixed_frac + additional_fix_frac
