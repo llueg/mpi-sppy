@@ -79,14 +79,10 @@ class ReducedCostsFixer(Extension):
         if serial_number > self._last_serial_number:
             self._last_serial_number = serial_number
             reduced_costs = spcomm.outerbound_receive_buffers[idx][1:1+self.nonant_length]
-            #integer_cutoffs = spcomm.outerbound_receive_buffers[idx][1+self.nonant_length:-1]
             this_outer_bound = spcomm.outerbound_receive_buffers[idx][0]
             #this_inner_bound = spcomm.innerbound_
             # if self.opt.cylinder_rank == 0: print(f"in extension, rcs: {reduced_costs}")
-            # if self.opt.cylinder_rank == 0: print(f"in extension, cutoffs: {integer_cutoffs}")
 
-            # can be removed once BT works
-            #self.integer_cutoff_fixing(integer_cutoffs)
             self.reduced_costs_bounds_tightening(reduced_costs, this_outer_bound)
             if self._use_rc_fixer:
                 self.reduced_costs_fixing(reduced_costs)
@@ -96,47 +92,6 @@ class ReducedCostsFixer(Extension):
                 print(f"Total unique vars fixed by reduced cost: {int(round(self._proved_fixed_vars))}")
                 print("No new reduced costs!")
                 print(f"Total unique vars fixed by heuristic: {int(round(self._heuristic_fixed_vars))}")
-
-    # def integer_cutoff_fixing(self, integer_cutoffs):
-
-    #     raw_fixed_this_iter = 0
-    #     inner_bound = self.opt.spcomm.BestInnerBound
-    #     for sub in self.opt.local_subproblems.values():
-    #         persistent_solver = is_persistent(sub._solver_plugin)
-    #         for sn in sub.scen_list:
-    #             s = self.opt.local_scenarios[sn]
-    #             # print(f"in scenario: {sn}")
-    #             for ci, ndn_i in enumerate(self._integer_nonants):
-    #                 # TODO: fix for maximization
-    #                 if (sn, ndn_i) in self._integer_proved_fixed_nonants:
-    #                     continue
-    #                 update_var = False
-    #                 if integer_cutoffs[ci] > inner_bound:
-    #                     xb = s._mpisppy_model.xbars[ndn_i].value
-    #                     xvar = s._mpisppy_data.nonant_indices[ndn_i]
-    #                     if (xb - xvar.lb <= self.bound_tol):
-    #                         xvar.fix(xvar.lb)
-    #                         if self.verbose and self.opt.cylinder_rank == 0:
-    #                             print(f"fixing var {xvar.name} to lb {xvar.lb}; cutoff is {integer_cutoffs[ci]} LP-LR")
-    #                         update_var = True
-    #                         raw_fixed_this_iter += 1
-    #                         self._integer_proved_fixed_nonants.add((sn, ndn_i))
-    #                     elif (xvar.ub - xb <= self.bound_tol):
-    #                         xvar.fix(xvar.ub)
-    #                         if self.verbose and self.opt.cylinder_rank == 0:
-    #                             print(f"fixing var {xvar.name} to ub {xvar.ub}; cutoff is {integer_cutoffs[ci]} LP-LR")
-    #                         update_var = True
-    #                         raw_fixed_this_iter += 1
-    #                         self._integer_proved_fixed_nonants.add((sn, ndn_i))
-    #                     else:
-    #                         pass
-    #                         # if self.verbose and self.opt.cylinder_rank == 0:
-    #                         #     print(f"Could not fix {xvar.name} to bound; cutoff is {integer_cutoffs[ci]} LP-LR, xbar: {xb}")
-    #                 if update_var and persistent_solver:
-    #                     sub._solver_plugin.update_var(xvar)
-    #     self._proved_fixed_vars += raw_fixed_this_iter / len(self.opt.local_scenarios)
-    #     if self.opt.cylinder_rank == 0:
-    #         print(f"Total unique vars fixed by reduced cost: {int(round(self._proved_fixed_vars))}")
 
 
     def reduced_costs_bounds_tightening(self, reduced_costs, this_outer_bound):
@@ -248,8 +203,6 @@ class ReducedCostsFixer(Extension):
             print(f"Total bounds tightened by reduced cost: {int(round(total_bounds_tightened))}")
 
 
-
-
     def reduced_costs_fixing(self, reduced_costs):
 
         if np.all(np.isnan(reduced_costs)):
@@ -259,12 +212,8 @@ class ReducedCostsFixer(Extension):
         # compute the quantile target
         abs_reduced_costs = np.abs(reduced_costs)
 
-        # TODO: maybe the can be adaptive and ignore
-        #       presently fixed variables, such that
-        #       it becomes more agressive with the same
-        #       fixed fraction as the iterations continue
-        # Could do this by adjusting fix fraction based on total #vars fixed by rc already
         if self._progressive_fix_fraction:
+            # TODO: relies on heuristic_fixed_vars to be accurate
             already_fixed_frac = np.minimum(self._heuristic_fixed_vars / self.nonant_length, 1)
             additional_fix_frac = (1- already_fixed_frac) * self.fix_fraction_target
             fix_fraction_target = already_fixed_frac + additional_fix_frac
@@ -283,9 +232,11 @@ class ReducedCostsFixer(Extension):
             print(f"Heuristic fixing reduced cost cutoff: {target}")
 
         raw_fixed_this_iter = 0
-        inf = float("inf")
-        spcomm = self.opt.spcomm
+        #inf = float("inf")
+        #spcomm = self.opt.spcomm
+        # TODO: test maximization
         for sub in self.opt.local_subproblems.values():
+            # TODO: does this still work without the persistent solver?
             persistent_solver = is_persistent(sub._solver_plugin)
             for sn in sub.scen_list:
                 s = self.opt.local_scenarios[sn]
@@ -304,16 +255,18 @@ class ReducedCostsFixer(Extension):
                                 print(f"unfixing var {xvar.name}; not converged in LP-LR")
                     else: # not nan, variable is converged in LP-LR
                         if xvar.fixed:
-                            if this_expected_rc <= self.zero_rc_tol:
+                            if (this_expected_rc <= self.zero_rc_tol) or (this_expected_rc <= target):
                                 xvar.unfix()
                                 update_var = True
                                 raw_fixed_this_iter -= 1
                                 if self.verbose and self.opt.cylinder_rank == 0:
-                                    print(f"unfixing var {xvar.name}; reduced cost is zero in LP-LR")
+                                    print(f"unfixing var {xvar.name}; reduced cost is zero/below target in LP-LR")
                         else:
                             xb = s._mpisppy_model.xbars[ndn_i].value
-                            if self.opt.is_minimizing:
-                                if (this_expected_rc >= target):
+                            if (this_expected_rc >= target):
+                                if self.opt.is_minimizing:
+                                    # TODO: second check here is already satisifies in rc spoke, up to consensus_threshold
+                                    # i.e., will be nan if not satisfied there
                                     if (reduced_costs[ci] > 0) and (xb - xvar.lb <= self.bound_tol):
                                         xvar.fix(xvar.lb)
                                         if self.verbose and self.opt.cylinder_rank == 0:
@@ -326,8 +279,7 @@ class ReducedCostsFixer(Extension):
                                             print(f"fixing var {xvar.name} to ub {xvar.ub}; reduced cost is {reduced_costs[ci]} LP-LR")
                                         update_var = True
                                         raw_fixed_this_iter += 1
-                            else:
-                                if (this_expected_rc >= target):
+                                else:
                                     if (reduced_costs[ci] < 0) and (xb - xvar.lb <= self.bound_tol):
                                         xvar.fix(xvar.lb)
                                         if self.verbose and self.opt.cylinder_rank == 0:
@@ -344,6 +296,8 @@ class ReducedCostsFixer(Extension):
                     if update_var and persistent_solver:
                         sub._solver_plugin.update_var(xvar)
 
+        # TODO: should there be any coordination between ranks, or is it guaranteed to be same everywhere?
+        # - probably guaranteed, because rc != nan only if consensus
         self._heuristic_fixed_vars += raw_fixed_this_iter / len(self.opt.local_scenarios)
         if self.opt.cylinder_rank == 0:
             print(f"Total unique vars fixed by heuristic: {int(round(self._heuristic_fixed_vars))}")

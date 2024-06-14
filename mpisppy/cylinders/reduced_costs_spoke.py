@@ -41,31 +41,14 @@ class ReducedCostsSpoke(LagrangianOuterBound):
 
         self.nonant_length = self.opt.nonant_length
 
-
-        # collect the vars original integer for later, and count how many
-        # if self.opt.is_minimizing:
-        #     default_best_incumbent = -math.inf
-        #     self._update_best = _update_best_cutoff_minimizing
-        # else:
-        #     default_best_incumbent = math.inf
-        #     self._update_best = _update_best_cutoff_maximizing
-
         self._modeler_fixed_nonants = set()
-        #self._integer_best_incumbent_to_fix = {}
-        # TODO: This is not populated anywhere
-        self._integer_proved_fixed_nonants = set()
 
         for k,s in self.opt.local_scenarios.items():
             for ndn_i, xvar in s._mpisppy_data.nonant_indices.items():
                 if xvar.fixed:
                     self._modeler_fixed_nonants.add(ndn_i)
-                # elif xvar.is_integer():
-                #     self._integer_best_incumbent_to_fix[ndn_i] = default_best_incumbent
             break
         #print(f"self._modeler_fixed_nonants: {self._modeler_fixed_nonants}")
-        #print(f"self._integer_best_incumbent_to_fix: {self._integer_best_incumbent_to_fix}")
-
-        #self.integer_nonant_length = len(self._integer_best_incumbent_to_fix)
 
         self._make_windows(1 + self.nonant_length, vbuflen)
         self._locals = communicator_array(vbuflen)
@@ -84,14 +67,6 @@ class ReducedCostsSpoke(LagrangianOuterBound):
     @rc.setter
     def rc(self, vals):
         self._bound[1:1+self.nonant_length] = vals
-
-    # @property
-    # def integer_cutoff(self):
-    #     return self._bound[1+self.nonant_length:-1]
-
-    # @rc.setter
-    # def integer_cutoff(self, vals):
-    #     self._bound[1+self.nonant_length:-1] = vals
 
     def lagrangian_prep(self):
         """
@@ -115,25 +90,6 @@ class ReducedCostsSpoke(LagrangianOuterBound):
             s.rc = pyo.Suffix(direction=pyo.Suffix.IMPORT)
         self.opt._create_solvers(presolve=False)
 
-
-    # def update_integer_var_cache(self, this_bound, reduced_costs):
-    #     for k,s in self.opt.local_scenarios.items():
-    #         for ci, (ndn_i, xvar) in enumerate(s._mpisppy_data.nonant_indices.items()):
-    #             if ndn_i not in self._integer_best_incumbent_to_fix:
-    #                 continue
-    #             if ndn_i in self._integer_proved_fixed_nonants:
-    #                 continue
-    #             this_expected_rc = reduced_costs[ci]
-    #             if np.isnan(this_expected_rc):
-    #                 continue
-    #             self._integer_best_incumbent_to_fix[ndn_i] = self._update_best(
-    #                 self._integer_best_incumbent_to_fix[ndn_i],
-    #                 this_bound,
-    #                 this_expected_rc,
-    #             )
-    #             # print(f"{xvar.name}, cutoff: {self._integer_best_incumbent_to_fix[xvar]}")
-    #         break
-
     def lagrangian(self):
         bound = super().lagrangian()
         if bound is not None:
@@ -147,9 +103,6 @@ class ReducedCostsSpoke(LagrangianOuterBound):
         # cost
         is_minimizing = self.opt.is_minimizing
         rc = np.zeros(self.nonant_length)
-        # -1: close to lb, 1: close to ub, 0: not encoutered
-        #close_to_lb_or_ub = np.zeros(self.nonant_length)
-        #num_total_scenarios = sum(len(sub.scen_list) for sub in self.opt.local_subproblems.values())
 
         for sub in self.opt.local_subproblems.values():
             if is_persistent(sub._solver_plugin):
@@ -193,113 +146,23 @@ class ReducedCostsSpoke(LagrangianOuterBound):
 
                     if is_minimizing:
                         if xb - xvar.lb <= self.bound_tol:
-                            # check if var at different bound before
-                            # if close_to_lb_or_ub[ci] > 0 or np.isnan(rc[ci]):
-                            #     rc[ci] = np.nan
-                            #     close_to_lb_or_ub[ci] = np.nan
-                            # else:
-                            #     close_to_lb_or_ub[ci] -= 1
-                                # We use prob of subproblem to get appropriate rc for overall solution
                             rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
                         elif xvar.ub - xb <= self.bound_tol:
-                            # if close_to_lb_or_ub[ci] < 0 or np.isnan(rc[ci]):
-                            #     rc[ci] = np.nan
-                            #     close_to_lb_or_ub[ci] = np.nan
-                            # else:
-                            #     close_to_lb_or_ub[ci] += 1
                             rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
-                        # not close to either bound -> rc = nan?
+                        # not close to either bound -> rc = nan
                         else:
                             rc[ci] = np.nan
-                            #close_to_lb_or_ub[ci] = np.nan
                     # maximizing
                     else:
                         if xb - xvar.lb <= self.bound_tol:
-                            # if close_to_lb_or_ub[ci] > 0 or np.isnan(rc[ci]):
-                            #     rc[ci] = np.nan
-                            #     close_to_lb_or_ub[ci] = np.nan
-                            # else:
-                            #     close_to_lb_or_ub[ci] -= 1
                             rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
                         elif xvar.ub - xb <= self.bound_tol:
-                            # if close_to_lb_or_ub[ci] < 0 or np.isnan(rc[ci]):
-                            #     rc[ci] = np.nan
-                            #     close_to_lb_or_ub[ci] = np.nan
-                            # else:
-                            #     close_to_lb_or_ub[ci] -= 1
                             rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
                         else:
                             rc[ci] = np.nan
-                            #close_to_lb_or_ub[ci] = np.nan
 
         #print(f"rc: {rc}")
-        #g_lb_or_ub = np.zeros(self.nonant_length)
-        #self.cylinder_comm.Allreduce(close_to_lb_or_ub, g_lb_or_ub, op=MPI.SUM)
-        #inconsistent_bounds = np.asarray(np.abs(g_lb_or_ub) != num_total_scenarios).nonzero()
         rcg = np.zeros(self.nonant_length)
         self.cylinder_comm.Allreduce(rc, rcg, op=MPI.SUM)
-        #rcg[inconsistent_bounds] = np.nan
         self._bound[1:1+self.nonant_length] = rcg
         # if self.opt.cylinder_rank == 0: print(f"in spoke before, rcs: {self._bound[1:1+self.nonant_length]}")
-
-        # if len(self._integer_best_incumbent_to_fix) == 0:
-        #     return
-
-        #inner_bound = self.hub_inner_bound
-        #outer_bound = self.hub_outer_bound
-        # if self.opt.cylinder_rank == 0: print(f"spoke inner_bound: {inner_bound}")
-        # if self.opt.cylinder_rank == 0: print(f"this outer_bound: {outer_bound}")
-
-        # now try to prove things based on the best inner bound
-        # self.update_integer_var_cache(outer_bound, rc)
-        # integer_cutoff = np.zeros(self.integer_nonant_length)
-        # for sub in self.opt.local_subproblems.values():
-        #     persistent_solver = is_persistent(sub._solver_plugin)
-        #     for sn in sub.scen_list:
-        #         s = self.opt.local_scenarios[sn]
-        #         for ci, (ndn_i, val) in enumerate(self._integer_best_incumbent_to_fix.items()):
-        #             integer_cutoff[ci] = val
-                    #if val > outer_bound*(1+1e-4): 
-                    #    print(f"var {s._mpisppy_data.nonant_indices[ndn_i].name}, cutoff is {val}")
-                    #if val > inner_bound and ndn_i not in self._integer_proved_fixed_nonants:
-                    #    self._integer_proved_fixed_nonants.add(ndn_i)
-                    #    xvar = s._mpisppy_data.nonant_indices[ndn_i]
-                    #    if (xb - xvar.lb) <= self.bound_tol:
-                    #        xvar.fix(xvar.lb)
-                    #    else:
-                    #        assert (xvar.ub - xb) <= self.bound_tol
-                    #        xvar.fix(xvar.ub)
-                    #    sub._solver_plugin.update_var(xvar)
-
-        # if self.opt.cylinder_rank == 0: print(f"in spoke, cutoffs: {integer_cutoff}")
-        # self._bound[1+self.nonant_length:-1] = integer_cutoff
-        # if self.opt.cylinder_rank == 0: print(f"in spoke, rcs: {self.rc}")
-        # if self.opt.cylinder_rank == 0: print(f"in spoke, cutoffs: {self._bound[1+self.nonant_length:-1]}")
-
-
-        #if self.cylinder_rank == 0:
-        #    print("Expected reduced costs sent:")
-        #    for sub in self.opt.local_subproblems.values():
-        #        for sn in sub.scen_list:
-        #            s = self.opt.local_scenarios[sn]
-        #            for ci, (ndn_i, xvar) in enumerate(s._mpisppy_data.nonant_indices.items()):
-        #                this_expected_rc = self.rc[ci]
-        #                if not np.isnan(this_expected_rc):#and abs(this_expected_rc) > 1e-1*abs(self.hub_inner_bound - self.hub_outer_bound):
-        #                    print(f"\t{xvar.name}, rc: {this_expected_rc}, xbar: {s._mpisppy_model.xbars[ndn_i].value}")
-        #            break
-
-
-# def _update_best_cutoff_minimizing(current_best, best_bound, rc):
-#     if rc < 0: # at ub, so decreasing the var
-#         new_best = best_bound - rc
-#     else: # at lb, so increasing the var
-#         new_best = best_bound + rc
-#     return max(current_best, new_best) # max not needed as always new_best >= current_best ?
-
-
-# def _update_best_cutoff_maximizing(current_best, best_bound, rc):
-#     if rc > 0: # at ub, so decreasing the var
-#         new_best = best_bound - rc
-#     else: # at lb, so increasing the var
-#         new_best = best_bound + rc
-#     return min(current_best, new_best)
