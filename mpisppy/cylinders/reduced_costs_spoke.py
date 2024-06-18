@@ -125,12 +125,12 @@ class ReducedCostsSpoke(LagrangianOuterBound):
                     if ndn_i in self._modeler_fixed_nonants:
                         rc[ci] = np.nan
                         continue
-                    if ndn_i in self._integer_proved_fixed_nonants:
-                        if xvar.value == xvar.lb:
-                            rc[ci] = math.inf if is_minimizing else -math.inf
-                        else:
-                            rc[ci] = -math.inf if is_minimizing else math.inf
-                        continue
+                    # if ndn_i in self._integer_proved_fixed_nonants:
+                    #     if xvar.value == xvar.lb:
+                    #         rc[ci] = math.inf if is_minimizing else -math.inf
+                    #     else:
+                    #         rc[ci] = -math.inf if is_minimizing else math.inf
+                    #     continue
                     xb = s._mpisppy_model.xbars[ndn_i].value
                     # check variance of xb to determine if consensus achieved
                     var_xb = pyo.value(s._mpisppy_model.xsqbars[ndn_i]) - xb * xb
