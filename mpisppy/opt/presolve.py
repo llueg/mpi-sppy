@@ -341,7 +341,7 @@ class SPIntervalTightener(_SPPresolver):
                         and (node_comm.Get_rank() == 0)
                         and (
                             self.opt.spcomm is None or self.opt.spcomm.strata_rank == 0
-                        )
+                        ) and (self.verbose)
                     ):
                         print(
                             f"Tightened lower bound for {var.name} from {original_lower_bound} to {var.lb}"
@@ -356,7 +356,7 @@ class SPIntervalTightener(_SPPresolver):
                         and (node_comm.Get_rank() == 0)
                         and (
                             self.opt.spcomm is None or self.opt.spcomm.strata_rank == 0
-                        )
+                        ) and (self.verbose)
                     ):
                         print(
                             f"Tightened upper bound for {var.name} from {original_upper_bound} to {var.ub}"
