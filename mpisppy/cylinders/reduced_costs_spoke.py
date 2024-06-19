@@ -11,21 +11,14 @@ from mpisppy import MPI
 
 class ReducedCostsSpoke(LagrangianOuterBound):
 
-    # converger_spoke_char = 'R'
-    # # TODO: set option
-    # bound_tol = 1e-6
-    # consensus_threshold = 1e-3
-    #th = self.opt.options['threshold']
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # This doesn't seem to be available in the spokes
-        #self.bound_tol = self.opt.options['rc_options']['bound_tol']
+        # TODO: bound_tol should be equal to option in rc fixer, for consistency
+        # This doesn't seem to be available in the spokes - needs to be added to shared_options?
+        # self.bound_tol = self.opt.options['rc_options']['bound_tol']
         self.bound_tol = 1e-6
         self.consensus_threshold = 1e-3
         self.converger_spoke_char = 'R'
-        # TODO: Could give above options thorugh config, but is it important enough?
-        #options = self.opt.options
 
 
     def make_windows(self):
@@ -48,7 +41,6 @@ class ReducedCostsSpoke(LagrangianOuterBound):
                 if xvar.fixed:
                     self._modeler_fixed_nonants.add(ndn_i)
             break
-        #print(f"self._modeler_fixed_nonants: {self._modeler_fixed_nonants}")
 
         self._make_windows(1 + self.nonant_length, vbuflen)
         self._locals = communicator_array(vbuflen)
@@ -106,16 +98,15 @@ class ReducedCostsSpoke(LagrangianOuterBound):
 
         for sub in self.opt.local_subproblems.values():
             if is_persistent(sub._solver_plugin):
-                # TODO: only load nonant's RC
                 # TODO: what happens with non-persistent solvers? 
                 # - if rc is accepted as a model suffix by the solver (e.g. gurobi shell), it is loaded in postsolve
-                # - if not, the solver should throiw an error
+                # - if not, the solver should throw an error
                 # - direct solvers seem to behave the same as persistent solvers
                 # GurobiDirect needs vars_to_load argument
-                # XpressDirect loads for all vars by default
+                # XpressDirect loads for all vars by default - TODO: should notify someone of this inconsistency
                 vars_to_load = [x for sn in sub.scen_list for _, x in self.opt.local_scenarios[sn]._mpisppy_data.nonant_indices.items()]
                 sub._solver_plugin.load_rc(vars_to_load=vars_to_load)
-            # TODO: warning ?
+            # TODO: warning if solver not persistent?
 
             for sn in sub.scen_list:
                 s = self.opt.local_scenarios[sn]
@@ -125,44 +116,23 @@ class ReducedCostsSpoke(LagrangianOuterBound):
                     if ndn_i in self._modeler_fixed_nonants:
                         rc[ci] = np.nan
                         continue
-                    # if ndn_i in self._integer_proved_fixed_nonants:
-                    #     if xvar.value == xvar.lb:
-                    #         rc[ci] = math.inf if is_minimizing else -math.inf
-                    #     else:
-                    #         rc[ci] = -math.inf if is_minimizing else math.inf
-                    #     continue
                     xb = s._mpisppy_model.xbars[ndn_i].value
                     # check variance of xb to determine if consensus achieved
                     var_xb = pyo.value(s._mpisppy_model.xsqbars[ndn_i]) - xb * xb
-                    # TODO: How to set this?
-                    # TODO: Does this eliminate need for close_to_lb_or_ub? --yes
+            
                     if var_xb  > self.consensus_threshold * self.consensus_threshold:
-                        #if self.opt.cylinder_rank == 0 and self.opt.options['verbose']:
-                        #print(f"Variance of xbar for {xvar.name} is {var_xb}, consensus not achieved")
-                        # if self.opt.cylinder_rank == 0:
-                        #     print(f'rc of var {xvar.name}  is {sub.rc[xvar]}')
                         rc[ci] = np.nan
                         continue
 
-                    if is_minimizing:
-                        if xb - xvar.lb <= self.bound_tol:
-                            rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
-                        elif xvar.ub - xb <= self.bound_tol:
-                            rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
-                        # not close to either bound -> rc = nan
-                        else:
-                            rc[ci] = np.nan
-                    # maximizing
+                    # solver takes care of sign of rc, based on lb, ub and max,min
+                    # rc can be of wrong sign if numerically 0 - accepted here, checked in extension
+                    if (xb - xvar.lb <= self.bound_tol) or (xvar.ub - xb <= self.bound_tol):
+                        rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
+                    # not close to either bound -> rc = nan
                     else:
-                        if xb - xvar.lb <= self.bound_tol:
-                            rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
-                        elif xvar.ub - xb <= self.bound_tol:
-                            rc[ci] += sub._mpisppy_probability * sub.rc[xvar]
-                        else:
-                            rc[ci] = np.nan
+                        rc[ci] = np.nan
 
-        #print(f"rc: {rc}")
         rcg = np.zeros(self.nonant_length)
         self.cylinder_comm.Allreduce(rc, rcg, op=MPI.SUM)
-        self._bound[1:1+self.nonant_length] = rcg
-        # if self.opt.cylinder_rank == 0: print(f"in spoke before, rcs: {self._bound[1:1+self.nonant_length]}")
+        self.rc = rcg
+        #self._bound[1:1+self.nonant_length] = rcg
