@@ -32,8 +32,8 @@ class TrackedData():
         name = name[:-4] if name.endswith('.csv') else name
 
         self.fname = os.path.join(self.folder, f'{name}.csv')
-        if self.plot:
-            self.plot_fname = os.path.join(self.folder, f'{name}.png')
+        #if self.plot:
+        self.plot_fname = os.path.join(self.folder, f'{name}.png')
 
     def initialize_df(self, columns):
         """ Initialize the dataframe for saving the data and write out the column names
@@ -61,7 +61,11 @@ class TrackedData():
         self.seen_iters.add(row_iter)
         # since append is deprecated
         new_dict = pd.DataFrame([row], columns=self.columns)
-        self.df = pd.concat([self.df, new_dict], ignore_index=True)
+        #self.df = pd.concat([self.df, new_dict], ignore_index=True)
+        # TODO: Concat with empty df throws future warning
+        self.df = (self.df.copy() if new_dict.empty else new_dict.copy() if self.df.empty
+                    else pd.concat([self.df, new_dict]) 
+                    )
 
     def write_out_data(self):
         """ Write out the cached data to csv file and clear the cache
@@ -98,6 +102,7 @@ class PHTracker(Extension):
         self._rank = self.opt.cylinder_rank
         self._reduce_types = ['nonants', 'duals', 'scen_gaps']
 
+        # TODO: plot functions are called even if tracker_options.plot_* is false - leads to error because plot_fname is not defined
         self._track_var_to_func = {
             'gaps': {'track': self.add_gaps,
                      'finalize': self.plot_xbars_bounds_gaps},
@@ -427,7 +432,6 @@ class PHTracker(Extension):
         plt.legend()
         plt.grid(True, which='major', linestyle='-', linewidth='0.5')
         plt.grid(True, which='minor', linestyle='--', linewidth='0.5')
-
         plt.savefig(self.track_dict[var].plot_fname)
         plt.close()
 
