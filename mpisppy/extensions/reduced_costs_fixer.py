@@ -81,6 +81,10 @@ class ReducedCostsFixer(Extension):
             self._target_history = []
 
     def post_iter0(self):
+        #self.fix_fraction_target = self._fix_fraction_target_iterK
+        pass
+    
+    def post_iter0_after_sync(self):
         self.fix_fraction_target = self._fix_fraction_target_iterK
 
     def initialize_spoke_indices(self):
