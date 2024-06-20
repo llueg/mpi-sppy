@@ -484,6 +484,17 @@ class Config(pyofig.ConfigDict):
                             domain=float,
                             default=1e-6)
 
+        self.add_to_config('rc_track_rc',
+                           description="track rc values, bounds and fixed vars",
+                           domain=bool,
+                           default=False)
+        
+        self.add_to_config('rc_track_prefix',
+                           description="where to store tracked values",
+                           domain=str,
+                           default='')
+    
+
 
     def lagranger_args(self):
 

@@ -135,6 +135,8 @@ def main():
             "progressive_fix_fraction": cfg.rc_progressive_fix_fraction,
             "use_rc_bt": cfg.rc_bound_tightening,
             "bound_tol": cfg.rc_bound_tol,
+            "track_rc": cfg.rc_track_rc,
+            "track_prefix": cfg.rc_track_prefix
         }
     if cfg.xhat_closest_tree:
         hub_dict["opt_kwargs"]["options"]["xhat_closest_options"] = {
