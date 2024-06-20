@@ -28,6 +28,7 @@ def _parse_args():
     cfg.lagrangian_args()
     cfg.xhatshuffle_args()
     cfg.subgradient_args()
+    cfg.reduced_costs_args()
     cfg.parse_command_line("sslp_cylinders")
     return cfg
 
