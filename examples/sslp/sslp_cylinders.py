@@ -79,6 +79,8 @@ def main():
     if reduced_costs:
         ext_classes.append(ReducedCostsFixer)
 
+    hub_dict["opt_kwargs"]["extension_kwargs"] = {"ext_classes" : ext_classes}
+
     if fixer:
         hub_dict["opt_kwargs"]["options"]["fixeroptions"] = {
             "verbose": False,
