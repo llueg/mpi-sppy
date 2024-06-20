@@ -36,6 +36,8 @@ def _parse_args():
     cfg.xhatshuffle_args()
     cfg.cross_scenario_cuts_args()
     cfg.reduced_costs_args()
+    cfg.tracking_args()
+    cfg.mip_options()
     cfg.add_to_config("ph_mipgaps_json",
                          description="json file with mipgap schedule (default None)",
                          domain=str,
@@ -134,6 +136,8 @@ def main():
             "progressive_fix_fraction": cfg.rc_progressive_fix_fraction,
             "use_rc_bt": cfg.rc_bound_tightening,
             "bound_tol": cfg.rc_bound_tol,
+            "track_rc": cfg.rc_track_rc,
+            "track_prefix": cfg.rc_track_prefix
         }
     if cfg.xhat_closest_tree:
         hub_dict["opt_kwargs"]["options"]["xhat_closest_options"] = {
