@@ -9,6 +9,9 @@ from mpisppy.spin_the_wheel import WheelSpinner
 from mpisppy.utils import config
 import mpisppy.utils.cfg_vanilla as vanilla
 from mpisppy.extensions.cross_scen_extension import CrossScenarioExtension
+from mpisppy.extensions.reduced_costs_fixer import ReducedCostsFixer
+from mpisppy.extensions.extension import MultiExtension
+from mpisppy.extensions.fixer import Fixer
 
 write_solution = True
 
@@ -26,6 +29,8 @@ def _parse_args():
     cfg.slammax_args()
     cfg.cross_scenario_cuts_args()
     cfg.reduced_costs_args()
+    cfg.tracking_args()
+    cfg.mip_options()
     cfg.add_to_config("instance_name",
                         description="netdes instance name (e.g., network-10-20-L-01)",
                         domain=str,
@@ -67,18 +72,37 @@ def main():
     if cross_scenario_cuts:
         ph_ext = CrossScenarioExtension
     else:
-        ph_ext = None
+        ph_ext = MultiExtension
 
     # Vanilla PH hub
     hub_dict = vanilla.ph_hub(*beans,
                               scenario_creator_kwargs=scenario_creator_kwargs,
                               ph_extensions=ph_ext,
                               rho_setter = None)
+    
+    ext_classes = []
+    if reduced_costs:
+        ext_classes.append(ReducedCostsFixer)
+    hub_dict["opt_kwargs"]["extension_kwargs"] = {"ext_classes" : ext_classes}
 
     if cross_scenario_cuts:
         hub_dict["opt_kwargs"]["options"]["cross_scen_options"]\
             = {"check_bound_improve_iterations" : cfg.cross_scenario_iter_cnt}
 
+    
+    if reduced_costs:
+        hub_dict["opt_kwargs"]["options"]["rc_options"] = {
+            "verbose": cfg.rc_verbose,
+            "use_rc_fixer": cfg.rc_fixer,
+            "zero_rc_tol": cfg.rc_zero_rc_tol,
+            "fix_fraction_target_iter0": cfg.rc_fix_fraction_iter0,
+            "fix_fraction_target_iterK": cfg.rc_fix_fraction_iterK,
+            "progressive_fix_fraction": cfg.rc_progressive_fix_fraction,
+            "use_rc_bt": cfg.rc_bound_tightening,
+            "bound_tol": cfg.rc_bound_tol,
+            "track_rc": cfg.rc_track_rc,
+            "track_prefix": cfg.rc_track_prefix
+        }
     # FWPH spoke
     if fwph:
         fw_spoke = vanilla.fwph_spoke(*beans, scenario_creator_kwargs=scenario_creator_kwargs)
