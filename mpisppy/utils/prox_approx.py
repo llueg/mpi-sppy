@@ -95,6 +95,7 @@ class _ProxApproxManager:
             self.add_cut(next_val, persistent_solver)
             if not isclose(next_val, x_bar, abs_tol=1e-6):
                 self.add_cut(2*x_bar - next_val, persistent_solver)
+                self.add_cut(x_bar, persistent_solver)
             return True
         return False
 
