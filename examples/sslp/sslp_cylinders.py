@@ -31,6 +31,8 @@ def _parse_args():
     cfg.xhatshuffle_args()
     cfg.subgradient_args()
     cfg.reduced_costs_args()
+    cfg.tracking_args()
+    cfg.mip_options()
     cfg.parse_command_line("sslp_cylinders")
     return cfg
 
