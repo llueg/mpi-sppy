@@ -86,16 +86,25 @@ class _ProxApproxManager:
             this_val = x_pnt
             #print(f"initial distance: {_f(this_val, x_pnt, y_pnt)**(0.5)}")
             #print(f"this_val: {this_val}")
+            # self.add_cut(this_val, persistent_solver)
+            # if not isclose(this_val, x_bar, abs_tol=1e-6):
+            #     # TODO: try without this cut
+            #     self.add_cut(2*x_bar - this_val, persistent_solver)
             next_val = _newton_step(this_val, x_pnt, y_pnt)
+            #next_val = this_val
             while not isclose(this_val, next_val, rel_tol=1e-6, abs_tol=1e-6):
                 #print(f"newton step distance: {_f(next_val, x_pnt, y_pnt)**(0.5)}")
                 #print(f"next_val: {next_val}")
                 this_val = next_val
                 next_val = _newton_step(this_val, x_pnt, y_pnt)
+            
+            # if not isclose(next_val, this_val, abs_tol=1e-6):
             self.add_cut(next_val, persistent_solver)
+            # TODO: change tolerance?
             if not isclose(next_val, x_bar, abs_tol=1e-6):
+                # TODO: try without this cut
                 self.add_cut(2*x_bar - next_val, persistent_solver)
-                self.add_cut(x_bar, persistent_solver)
+                #self.add_cut(x_bar, persistent_solver)
             return True
         return False
 
