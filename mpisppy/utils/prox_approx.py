@@ -65,10 +65,17 @@ class _ProxApproxManager:
         x_bar = self.xbar.value
         y_pnt = self.xvarsqrd.value
         f_val = x_pnt**2
+        lb = self.xvar.lb
+        ub = self.xvar.ub
 
         #print(f"y-distance: {actual_val - measured_val})")
         if y_pnt is None:
             self.add_cut(x_pnt, persistent_solver)
+            #if lb is not None:
+            #    self.add_cut(lb, persistent_solver)
+            #if ub is not None:
+            #    self.add_cut(ub, persistent_solver)
+            
             if not isclose(x_pnt, x_bar, abs_tol=1e-6):
                 self.add_cut(2*x_bar - x_pnt, persistent_solver)
             return True
@@ -104,7 +111,7 @@ class _ProxApproxManager:
             if not isclose(next_val, x_bar, abs_tol=1e-6):
                 # TODO: try without this cut
                 self.add_cut(2*x_bar - next_val, persistent_solver)
-                #self.add_cut(x_bar, persistent_solver)
+                self.add_cut(x_bar, persistent_solver)
             return True
         return False
 

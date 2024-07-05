@@ -586,11 +586,11 @@ class PHBase(mpisppy.spopt.SPOpt):
             #for ndn_i, xvar in s._mpisppy_data.nonant_indices.items():
                 #prox_approx_manager = s._mpisppy_data.xsqvar_prox_approx[ndn_i]
                 #val_xsq = s._mpisppy_model.xsqvar[ndn_i].value
-                #val_x = s._mpisppy_data.nonant_indices[ndn_i].value
-                #i_tol = tol * val_x * val_x if val_x is not None else tol
-                #i_tol = i_tol if i_tol > 0 else tol
+                val_x = s._mpisppy_data.nonant_indices[ndn_i].value
+                i_tol = tol * val_x * val_x if val_x is not None else tol
+                i_tol = i_tol if i_tol > 0 else tol
                 #print(f'{sn}, tol {i_tol}, val x {val_x}, val_x ** 2 {val_x * val_x}, val xsq {val_xsq}')
-                prox_approx_manager.check_tol_add_cut(tol, persistent_solver)
+                prox_approx_manager.check_tol_add_cut(i_tol, persistent_solver)
 
 
     def attach_Ws_and_prox(self):
