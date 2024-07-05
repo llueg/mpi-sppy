@@ -4,6 +4,7 @@
 from math import isclose
 from pyomo.environ import value
 from pyomo.core.expr.numeric_expr import LinearExpression
+import numpy as np
 
 # helpers for distance from y = x**2
 def _f(val, x_pnt, y_pnt):
@@ -40,6 +41,7 @@ class _ProxApproxManager:
         self.cuts = xsqvar_cuts
         self.cut_index = 0
         self._store_bounds()
+        self._lin_points = {}
 
     def _store_bounds(self):
         if self.xvar.lb is None:
@@ -56,6 +58,33 @@ class _ProxApproxManager:
         create a cut at val
         '''
         pass
+
+    def maintain_cuts(self, persistent_solver=None):
+        # TODO: move option to phbase
+        max_num_cuts = 5
+
+        if len(self._lin_points) > max_num_cuts:
+            num_del = len(self._lin_points) - max_num_cuts
+            x_arr = np.fromiter(self._lin_points.values(), dtype=float)
+            x_idx = np.fromiter(self._lin_points.keys(), dtype=int)
+            curr_xbar = self.xbar.value
+            # sort lin points by abs distance to xbar
+            #print(f'xbar: {curr_xbar}, x_arr: {x_arr}, x_idx: {x_idx}')
+            order = np.argsort(np.abs(x_arr - curr_xbar))
+            x_arr = x_arr[order]
+            x_idx = x_idx[order]
+            #print(f'xbar: {curr_xbar}, x_arr: {x_arr}, x_idx: {x_idx}')
+            for k in range(1, num_del + 1):
+                del_idx = x_idx[-k]
+                #print(f"deleting cut idx {del_idx}")
+                self._lin_points.pop(del_idx)
+                if persistent_solver is not None:
+                    persistent_solver.remove_constraint(self.cuts[self.var_index, del_idx])
+                else:
+                    del self.cuts[self.var_index, del_idx]
+                #del self.cuts[self.var_index, del_idx]
+                #print(f"deleting cut for {self.xvar.name} at {del_val}")
+
 
     def check_tol_add_cut(self, tolerance, persistent_solver=None):
         '''
@@ -107,11 +136,12 @@ class _ProxApproxManager:
             
             # if not isclose(next_val, this_val, abs_tol=1e-6):
             self.add_cut(next_val, persistent_solver)
-            # TODO: change tolerance?
-            if not isclose(next_val, x_bar, abs_tol=1e-6):
+            # TODO: change tolerance - make relative?
+            if not isclose(next_val, x_bar, abs_tol=1e-6, ):
                 # TODO: try without this cut
                 self.add_cut(2*x_bar - next_val, persistent_solver)
-                self.add_cut(x_bar, persistent_solver)
+                #self.add_cut(x_bar, persistent_solver)
+            self.maintain_cuts(persistent_solver)
             return True
         return False
 
@@ -124,6 +154,8 @@ class ProxApproxManagerContinuous(_ProxApproxManager):
         # handled by bound
         if val == 0:
             return 0
+
+        self._lin_points[self.cut_index] = val
         # f'(a) = 2*val
         # f(a) - f'(a)a = val*val - 2*val*val
         f_p_a = 2*val

@@ -579,9 +579,11 @@ class PHBase(mpisppy.spopt.SPOpt):
         NOTE: This is badly inefficient for bundles, but works
         """
         tol = self.prox_approx_tol
+        total_num_cuts = 0
         for sn, s in self.local_scenarios.items():
             persistent_solver = (s._solver_plugin if sputils.is_persistent(s._solver_plugin) else None)
-            print(f"{sn}: total number of proximal cuts: {len(s._mpisppy_model.xsqvar_cuts)}")
+            #print(f"{sn}: total number of proximal cuts: {len(s._mpisppy_model.xsqvar_cuts)}")
+            total_num_cuts += len(s._mpisppy_model.xsqvar_cuts)
             for ndn_i, prox_approx_manager in s._mpisppy_data.xsqvar_prox_approx.items():
             #for ndn_i, xvar in s._mpisppy_data.nonant_indices.items():
                 #prox_approx_manager = s._mpisppy_data.xsqvar_prox_approx[ndn_i]
@@ -591,7 +593,9 @@ class PHBase(mpisppy.spopt.SPOpt):
                 i_tol = i_tol if i_tol > 0 else tol
                 #print(f'{sn}, tol {i_tol}, val x {val_x}, val_x ** 2 {val_x * val_x}, val xsq {val_xsq}')
                 prox_approx_manager.check_tol_add_cut(i_tol, persistent_solver)
-
+        
+        if self.cylinder_rank == 0:
+            print(f"Total # proximal cuts : {total_num_cuts}")
 
     def attach_Ws_and_prox(self):
         """ Attach the dual and prox terms to the models in `local_scenarios`.
