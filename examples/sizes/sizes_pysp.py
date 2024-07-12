@@ -41,4 +41,6 @@ ef = ExtensiveForm(options={'solver':solver},
 
 ef.solve_extensive_form(tee=True)
 
+ef.nonants_to_csv('sizes_EF_nonants.csv')
+
 sizes.close()

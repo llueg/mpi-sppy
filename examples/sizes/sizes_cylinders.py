@@ -23,7 +23,7 @@ def _parse_args():
     cfg.xhatlooper_args()
     cfg.xhatshuffle_args()
     cfg.xhatxbar_args()
-
+    cfg.tracking_args()
     cfg.parse_command_line("sizes_cylinders")
     return cfg
 

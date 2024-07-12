@@ -24,6 +24,8 @@ from mpisppy.extensions.reduced_costs_fixer import ReducedCostsFixer
 from mpisppy.extensions.fixer import Fixer
 from mpisppy.extensions.mipgapper import Gapper
 
+import pyomo.environ as pyo
+
 write_solution = True
 
 def _parse_args():
@@ -90,6 +92,7 @@ def main():
     scenario_creator_kwargs = {
         'use_integer': False,
         "crops_multiplier": crops_multiplier,
+        'sense': pyo.minimize
     }
     scenario_names = [f"Scenario{i+1}" for i in range(num_scen)]
 
@@ -144,6 +147,8 @@ def main():
             "progressive_fix_fraction": cfg.rc_progressive_fix_fraction,
             "use_rc_bt": cfg.rc_bound_tightening,
             "bound_tol": cfg.rc_bound_tol,
+            "track_rc": cfg.rc_track_rc,
+            "track_prefix": cfg.rc_track_prefix
         }
 
     # FWPH spoke

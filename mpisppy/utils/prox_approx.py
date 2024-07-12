@@ -42,6 +42,7 @@ class _ProxApproxManager:
         self.cut_index = 0
         self._store_bounds()
         self._lin_points = {}
+        self._xbar_history = {}
 
     def _store_bounds(self):
         if self.xvar.lb is None:
@@ -78,10 +79,11 @@ class _ProxApproxManager:
                 del_idx = x_idx[-k]
                 #print(f"deleting cut idx {del_idx}")
                 self._lin_points.pop(del_idx)
+                # TODO: always
                 if persistent_solver is not None:
                     persistent_solver.remove_constraint(self.cuts[self.var_index, del_idx])
-                else:
-                    del self.cuts[self.var_index, del_idx]
+                
+                del self.cuts[self.var_index, del_idx]
                 #del self.cuts[self.var_index, del_idx]
                 #print(f"deleting cut for {self.xvar.name} at {del_val}")
 
@@ -156,6 +158,10 @@ class ProxApproxManagerContinuous(_ProxApproxManager):
             return 0
 
         self._lin_points[self.cut_index] = val
+        if self.xbar.value in self._xbar_history:
+            self._xbar_history[self.xbar.value].append(self.cut_index)
+        else:
+            self._xbar_history[self.xbar.value] = [self.cut_index]
         # f'(a) = 2*val
         # f(a) - f'(a)a = val*val - 2*val*val
         f_p_a = 2*val
@@ -174,6 +180,34 @@ class ProxApproxManagerContinuous(_ProxApproxManager):
         #print(f"added continuous cut for {self.xvar.name} at {val}, lb: {self.xvar.lb}, ub: {self.xvar.ub}")
 
         return 1
+    
+    def plot(self,plot_range=(-10,10),plot_points=100):
+        import matplotlib.pyplot as plt
+        def lin_xsq(x, lin_points):
+            lin_values = []
+            for lin_point in self._lin_points:
+                lin_values.append(2*lin_point*x - lin_point**2)
+            return max(lin_values)
+        
+        f, ax = plt.subplots()
+        x = np.linspace(*plot_range, plot_points)
+        y = x**2
+        ax.plot(x, y, label='x^2')
+        for xbar, cidx_list in self._xbar_history.items():
+            min_cidx = min(cidx_list)
+            lin_points = []
+            for ixb, icidx_l in self._xbar_history.items():
+                prev_cidx = [c for c in icidx_l if c <= min_cidx]
+                lin_points += [self._lin_points[c] for c in prev_cidx]
+            
+            y_lin = [lin_xsq(xp, lin_points) for xp in x]
+            ax.plot(x, y_lin, label='lin at {xbar}')
+
+        return f, ax
+        
+
+
+        
 
 def _compute_mb(val):
     ## [(n+1)^2 - n^2] = 2n+1
@@ -212,6 +246,9 @@ class ProxApproxManagerDiscrete(_ProxApproxManager):
             if persistent_solver is not None:
                 persistent_solver.add_constraint(self.cuts[self.var_index, val+1])
             cuts_added += 1
+            # TODO: could also use val+1 or val + 0.5
+            self._lin_points[self.cut_index] = val + 0.5
+            self.cut_index += 1
 
         ## Similarly, a cut to the LEFT of the point 3 is the cut for (2,3),
         ## which is indexed by 3
@@ -225,6 +262,8 @@ class ProxApproxManagerDiscrete(_ProxApproxManager):
             if persistent_solver is not None:
                 persistent_solver.add_constraint(self.cuts[self.var_index, val])
             cuts_added += 1
+            self._lin_points[self.cut_index] = val - 0.5
+            self.cut_index += 1
         #print(f"added {cuts_added} integer cut(s) for {self.xvar.name} at {val}, lb: {self.xvar.lb}, ub: {self.xvar.ub}")
 
         return cuts_added
@@ -244,9 +283,9 @@ if __name__ == '__main__':
 
     m.xsqrdobj = pyo.Constraint([0], pyo.Integers)
 
-    s = pyo.SolverFactory('xpress_persistent')
+    s = pyo.SolverFactory('cbc')
     prox_manager = ProxApproxManager(m.x, m.xsqrd, m.zero, m.xsqrdobj, 0)
-    s.set_instance(m)
+    #s.set_instance(m)
     m.pprint()
     new_cuts = True
     iter_cnt = 0
@@ -256,5 +295,8 @@ if __name__ == '__main__':
         new_cuts = prox_manager.check_tol_add_cut(1e-1, persistent_solver=s)
         #m.pprint()
         iter_cnt += 1
+    
+    f, ax = prox_manager.plot()
+    f.savefig('prox_approx.png')
 
     print(f"cuts: {len(m.xsqrdobj)}, iters: {iter_cnt}")

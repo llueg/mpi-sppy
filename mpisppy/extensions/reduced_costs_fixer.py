@@ -50,6 +50,7 @@ class ReducedCostsFixer(Extension):
         self._options = rc_options
 
         # for updates
+        # TODO: Initialize to 0
         self._last_serial_number = -1
         #self._proved_fixed_vars = 0
         self._heuristic_fixed_vars = 0
@@ -151,6 +152,7 @@ class ReducedCostsFixer(Extension):
         if np.isinf(inner_bound) or np.isinf(outer_bound):
             if self.opt.cylinder_rank == 0:
                 print(f"Bounds tightened by reduced cost: 0 (inner or outer bound not available)")
+                #print(f'reduced costs: {reduced_costs}')
             return
         # TODO: keep track of and skip already fixed variables, i.e. lb=ub
         for sub in self.opt.local_subproblems.values():

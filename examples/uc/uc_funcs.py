@@ -129,7 +129,8 @@ def scenario_rhos(scenario_instance, rho_scale_factor=0.1):
             avg_cost = scenario_instance.ComputeProductionCosts(scenario_instance, g, t, avg_power) + min_cost
             #max_cost = scenario_instance.ComputeProductionCosts(scenario_instance, g, t, max_power) + min_cost
 
-            computed_rho = rho_scale_factor * avg_cost
+            computed_rho = max(avg_cost, 1e-3)
+            computed_rho *= rho_scale_factor
             computed_rhos.append((id(scenario_instance.UnitOn[g,t]), computed_rho))
                              
     return computed_rhos
