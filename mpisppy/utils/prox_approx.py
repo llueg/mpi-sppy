@@ -21,11 +21,11 @@ def _newton_step(val, x_pnt, y_pnt):
 class ProxApproxManager:
     __slots__ = ()
 
-    def __new__(cls, xvar, xvarsqrd, xbar, xsqvar_cuts, ndn_i):
+    def __new__(cls, xvar, xvarsqrd, xbar, xsqbar, xsqvar_cuts, ndn_i):
         if xvar.is_integer():
-            return ProxApproxManagerDiscrete(xvar, xvarsqrd, xbar, xsqvar_cuts, ndn_i)
+            return ProxApproxManagerDiscrete(xvar, xvarsqrd, xbar, xsqbar, xsqvar_cuts, ndn_i)
         else:
-            return ProxApproxManagerContinuous(xvar, xvarsqrd, xbar, xsqvar_cuts, ndn_i)
+            return ProxApproxManagerContinuous(xvar, xvarsqrd, xbar, xsqbar, xsqvar_cuts, ndn_i)
 
 class _ProxApproxManager:
     '''
@@ -33,10 +33,11 @@ class _ProxApproxManager:
     '''
     __slots__ = ()
 
-    def __init__(self, xvar, xvarsqrd, xbar, xsqvar_cuts, ndn_i):
+    def __init__(self, xvar, xvarsqrd, xbar, xsqbar, xsqvar_cuts, ndn_i):
         self.xvar = xvar
         self.xvarsqrd = xvarsqrd
         self.xbar = xbar
+        self.xsqbar = xsqbar
         self.var_index = ndn_i
         self.cuts = xsqvar_cuts
         self.cut_index = 0
@@ -62,7 +63,7 @@ class _ProxApproxManager:
 
     def maintain_cuts(self, persistent_solver=None):
         # TODO: move option to phbase
-        max_num_cuts = 5
+        max_num_cuts = 20
 
         if len(self._lin_points) > max_num_cuts:
             num_del = len(self._lin_points) - max_num_cuts
@@ -94,14 +95,23 @@ class _ProxApproxManager:
         '''
         x_pnt = self.xvar.value
         x_bar = self.xbar.value
+        xb_variance = np.maximum(self.xsqbar.value - x_bar * x_bar, 0)
+        rel_sd = np.abs(np.sqrt(xb_variance)/(x_bar + 1e-6))
+        rel_sd = np.maximum(rel_sd, 1e-6)
+        #rel_sd = 1
         y_pnt = self.xvarsqrd.value
         f_val = x_pnt**2
         lb = self.xvar.lb
         ub = self.xvar.ub
 
+        tol = np.maximum(x_pnt, 1e-6) * tolerance
+        tol *= rel_sd
+
         #print(f"y-distance: {actual_val - measured_val})")
         if y_pnt is None:
             self.add_cut(x_pnt, persistent_solver)
+            self.add_cut(x_bar + xb_variance, persistent_solver)
+            self.add_cut(x_bar - xb_variance, persistent_solver)
             #if lb is not None:
             #    self.add_cut(lb, persistent_solver)
             #if ub is not None:
@@ -111,7 +121,8 @@ class _ProxApproxManager:
                 self.add_cut(2*x_bar - x_pnt, persistent_solver)
             return True
 
-        if (f_val - y_pnt) > tolerance:
+        #print(f'tol: {tol}')
+        if (f_val - y_pnt) > tol:
             '''
             In this case, we project the point x_pnt, y_pnt onto
             the curve y = x**2 by finding the minimum distance
@@ -143,9 +154,46 @@ class _ProxApproxManager:
                 # TODO: try without this cut
                 self.add_cut(2*x_bar - next_val, persistent_solver)
                 #self.add_cut(x_bar, persistent_solver)
-            self.maintain_cuts(persistent_solver)
+            #self.maintain_cuts(persistent_solver)
             return True
         return False
+    
+    # def check_tol_add_cut(self, tolerance, persistent_solver=None):
+    #     '''
+    #     add a cut if the tolerance is not satified
+    #     '''
+    #     x_pnt = self.xvar.value
+    #     x_bar = self.xbar.value
+    #     xb_variance = self.xsqbar.value - x_bar * x_bar
+    #     xb_sd = np.sqrt(xb_variance)
+    #     rel_sd = np.sqrt(xb_variance)/x_bar
+    #     #rel_sd = 1
+    #     y_pnt = self.xvarsqrd.value
+    #     f_val = x_pnt**2
+    #     lb = self.xvar.lb
+    #     ub = self.xvar.ub
+
+    #     if y_pnt is None:
+    #         self.add_cut(x_pnt, persistent_solver)
+    #         self.add_cut(x_bar + xb_sd)
+    #         self.add_cut(x_bar - xb_sd)
+    #         return True
+    #     #print(f"y-distance: {actual_val - measured_val})")
+
+    #     if (f_val - y_pnt) > (tolerance):
+    #         this_val = x_pnt
+    #         next_val = _newton_step(this_val, x_pnt, y_pnt)
+    #         while not isclose(this_val, next_val, rel_tol=1e-6, abs_tol=1e-6):
+    #             this_val = next_val
+    #             next_val = _newton_step(this_val, x_pnt, y_pnt)
+    #         self.add_cut(next_val, persistent_solver)
+    #         self.add_cut(x_bar + xb_sd)
+    #         self.add_cut(x_bar - xb_sd)
+    #         return True
+
+    #     return False
+
+        
 
 class ProxApproxManagerContinuous(_ProxApproxManager):
 
@@ -181,33 +229,54 @@ class ProxApproxManagerContinuous(_ProxApproxManager):
 
         return 1
     
-    def plot(self,plot_range=(-10,10),plot_points=100):
+    def plot(self, plot_range=(-50,50), plot_points=100, folder='prox_approx_plots', filename=''):
         import matplotlib.pyplot as plt
         def lin_xsq(x, lin_points):
             lin_values = []
-            for lin_point in self._lin_points:
+            for lin_point in lin_points:
                 lin_values.append(2*lin_point*x - lin_point**2)
             return max(lin_values)
         
-        f, ax = plt.subplots()
-        x = np.linspace(*plot_range, plot_points)
-        y = x**2
-        ax.plot(x, y, label='x^2')
+        f1, ax1 = plt.subplots()
+        f2, ax2 = plt.subplots()
+        x1 = np.linspace(*plot_range, plot_points)
+        x2 = np.linspace(*plot_range, plot_points)
+        y1 = x1**2
+        y2 = x2**2
+        #ax1.plot(x1, y1, label='(x-xb)^2')
+        ax2.plot(x2, y2, label='x^2')
         for xbar, cidx_list in self._xbar_history.items():
-            min_cidx = min(cidx_list)
+            max_cidx = max(cidx_list)
             lin_points = []
             for ixb, icidx_l in self._xbar_history.items():
-                prev_cidx = [c for c in icidx_l if c <= min_cidx]
+                prev_cidx = [c for c in icidx_l if c <= max_cidx]
                 lin_points += [self._lin_points[c] for c in prev_cidx]
+                if ixb == xbar:
+                    curr_lin_points = [self._lin_points[c] for c in cidx_list]
             
-            y_lin = [lin_xsq(xp, lin_points) for xp in x]
-            ax.plot(x, y_lin, label='lin at {xbar}')
+            y_lin = [lin_xsq(xp, lin_points) for xp in x2]
+            l = ax2.plot(x2, y_lin, label=f'lin. for xb={xbar}')
+            ax2.scatter(curr_lin_points, [xp ** 2 for xp in curr_lin_points], color=l[0].get_color(), marker='x')
+            ax2.scatter(xbar, xbar**2, color=l[0].get_color(), marker='o')
 
-        return f, ax
+            d_x_x2_lin = [lin_xsq(xp, lin_points) - 2 * xp * xbar + xbar ** 2 for xp in x1]
+            l1 = ax1.plot(x1, d_x_x2_lin, label=f'lin. for (x-{xbar})^2')
+            ax1.plot(x1, (x1 -xbar)**2, color=l1[0].get_color())
         
+        ax1.legend()
+        ax1.set_xlabel('x-xb')
+        ax1.set_title('Approximations of (x-xb)^2 ')
+        f1.savefig(f'{folder}/prox_term_{filename}', dpi=400)
+        plt.close(f1)
 
+        ax2.legend()
+        ax2.set_xlabel('x')
+        ax2.set_title('Approximations of x^2 ')
+        f2.savefig(f'{folder}/x^2_term_{filename}', dpi=400)
+        plt.close(f2)
 
-        
+        return None
+
 
 def _compute_mb(val):
     ## [(n+1)^2 - n^2] = 2n+1
@@ -277,26 +346,33 @@ if __name__ == '__main__':
     #m.x = pyo.Var(within=pyo.Integers, bounds = bounds)
     m.xsqrd = pyo.Var(within=pyo.NonNegativeReals)
 
-    m.zero = pyo.Param(initialize=-73.2, mutable=True)
+    xbars = [50, 10, -5]
+
+    xsqbars = [60, 8, -4.5]
+
+    m.xsqbar = pyo.Param(initialize=100, mutable=True)
+
+    m.zero = pyo.Param(initialize=100, mutable=True)
     ## ( x - zero )^2 = x^2 - 2 x zero + zero^2
     m.obj = pyo.Objective( expr = m.xsqrd - 2*m.zero*m.x + m.zero**2 )
 
     m.xsqrdobj = pyo.Constraint([0], pyo.Integers)
 
-    s = pyo.SolverFactory('cbc')
-    prox_manager = ProxApproxManager(m.x, m.xsqrd, m.zero, m.xsqrdobj, 0)
-    #s.set_instance(m)
+    s = pyo.SolverFactory('gurobi_persistent')
+    prox_manager = ProxApproxManager(m.x, m.xsqrd, m.zero, m.xsqbar, m.xsqrdobj, 0)
+    s.set_instance(m)
     m.pprint()
     new_cuts = True
     iter_cnt = 0
-    while new_cuts:
+    for i, xb in enumerate(xbars):
         s.solve(m,tee=False)
         print(f"x: {pyo.value(m.x):.2e}, obj: {pyo.value(m.obj):.2e}")
         new_cuts = prox_manager.check_tol_add_cut(1e-1, persistent_solver=s)
+        m.zero = xb
+        m.xsqbar = xsqbars[i]
         #m.pprint()
         iter_cnt += 1
     
-    f, ax = prox_manager.plot()
-    f.savefig('prox_approx.png')
+    prox_manager.plot(plot_range=(-200,200),plot_points=100)
 
     print(f"cuts: {len(m.xsqrdobj)}, iters: {iter_cnt}")
