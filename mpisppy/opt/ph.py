@@ -3,6 +3,7 @@
 # PH-specific code
 
 import mpisppy.phbase
+import mpisppy.l1phbase
 import shutil
 import mpisppy.MPI as mpi
 
@@ -16,6 +17,60 @@ global_rank = fullcomm.Get_rank()
 
 ############################################################################
 class PH(mpisppy.phbase.PHBase):
+    """ PH. See PHBase for list of args. """
+
+    #======================================================================
+    # uncomment the line below to get per-rank profile outputs, which can 
+    # be examined with snakeviz (or your favorite profile output analyzer)
+    #@profile(filename="profile_out")
+    def ph_main(self, finalize=True):
+        """ Execute the PH algorithm.
+
+        Args:
+            finalize (bool, optional, default=True):
+                If True, call `PH.post_loops()`, if False, do not,
+                and return None for Eobj
+
+        Returns:
+            tuple:
+                Tuple containing
+
+                conv (float):
+                    The convergence value (not easily interpretable).
+                Eobj (float or `None`):
+                    If `finalize=True`, this is the expected, weighted
+                    objective value with the proximal term included. This value
+                    is not directly useful. If `finalize=False`, this value is
+                    `None`.
+                trivial_bound (float):
+                    The "trivial bound", computed by solving the model with no
+                    nonanticipativity constraints (immediately after iter 0).
+
+        NOTE:
+            You need an xhat finder either in denoument or in an extension.
+        """
+        verbose = self.options['verbose']
+        self.PH_Prep()
+
+        if (verbose):
+            print('Calling PH Iter0 on global rank {}'.format(global_rank))
+        trivial_bound = self.Iter0()
+        if (verbose):
+            print ('Completed PH Iter0 on global rank {}'.format(global_rank))
+        if ('asynchronousPH' in self.options) and (self.options['asynchronousPH']):
+            raise RuntimeError("asynchronousPH is deprecated; use APH")
+
+        self.iterk_loop()
+
+        if finalize:
+            Eobj = self.post_loops(self.extensions)
+        else:
+            Eobj = None
+
+        return self.conv, Eobj, trivial_bound
+    
+
+class PHL1(mpisppy.l1phbase.L1PHBase):
     """ PH. See PHBase for list of args. """
 
     #======================================================================

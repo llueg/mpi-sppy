@@ -9,7 +9,7 @@ import copy
 
 # Hub and spoke SPBase classes
 from mpisppy.phbase import PHBase
-from mpisppy.opt.ph import PH
+from mpisppy.opt.ph import PH, PHL1
 from mpisppy.opt.aph import APH
 from mpisppy.opt.lshaped import LShapedMethod
 from mpisppy.fwph.fwph import FWPH
@@ -102,7 +102,7 @@ def ph_hub(
         "hub_kwargs": {"options": {"rel_gap": cfg.rel_gap,
                                    "abs_gap": cfg.abs_gap,
                                    "max_stalled_iters": cfg.max_stalled_iters}},
-        "opt_class": PH,
+        "opt_class": PHL1,
         "opt_kwargs": {
             "options": options,
             "all_scenario_names": all_scenario_names,
