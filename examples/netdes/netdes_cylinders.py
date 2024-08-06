@@ -25,6 +25,7 @@ def _parse_args():
     cfg.xhatshuffle_args()
     cfg.slammax_args()
     cfg.cross_scenario_cuts_args()
+    cfg.tracking_args()
     cfg.add_to_config("instance_name",
                         description="netdes instance name (e.g., network-10-20-L-01)",
                         domain=str,

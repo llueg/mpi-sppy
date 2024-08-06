@@ -111,7 +111,7 @@ class L1PHBase(mpisppy.phbase.PHBase):
                     # expand (x - xbar)**2 to (x**2 - 2*xbar*x + xbar**2)
                     # x**2 is the only qradratic term, which might be
                     # dealt with differently depending on user-set options
-                    prox_expr += (scenario._mpisppy_model.rho[ndn_i] / 2.0) * \
+                    prox_expr += (scenario._mpisppy_model.rho[ndn_i] ) * \
                                  (scenario._mpisppy_model.xdiff_pos[ndn_i] + scenario._mpisppy_model.xdiff_neg[ndn_i])
                 scenario._mpisppy_model.ProxExpr = pyo.Expression(expr=prox_expr)
                 ph_term += scenario._mpisppy_model.prox_on * scenario._mpisppy_model.ProxExpr

@@ -26,8 +26,10 @@ def _parse_args():
     cfg.xhatlooper_args()
     cfg.fwph_args()
     cfg.lagrangian_args()
+    cfg.lagranger_args()
     cfg.xhatshuffle_args()
     cfg.subgradient_args()
+    cfg.tracking_args()
     cfg.parse_command_line("sslp_cylinders")
     return cfg
 

@@ -32,8 +32,10 @@ class TrackedData():
         name = name[:-4] if name.endswith('.csv') else name
 
         self.fname = os.path.join(self.folder, f'{name}.csv')
-        if self.plot:
-            self.plot_fname = os.path.join(self.folder, f'{name}.png')
+        #if self.plot:
+            
+        self.plot_fname = os.path.join(self.folder, f'{name}.png')
+        #print(f"Plotting {name} at {self.plot_fname}")
 
     def initialize_df(self, columns):
         """ Initialize the dataframe for saving the data and write out the column names
@@ -141,7 +143,8 @@ class PHTracker(Extension):
                 if self._rank == 0:
                     plot = self.tracker_options.get(f'plot_{t}', False)
                     val = TrackedData(t, self.cylinder_folder, plot, self.verbose)
-                    user_fname = self.tracker_options.get(f"{t}_fname", None)
+                    user_fname = self.tracker_options.get(f"{t}_fname", t)
+                    #print(f"Tracking {t} with user_fname {user_fname}")
                     val.initialize_fnames(name=user_fname)
 
                 self.track_dict[t] = val
@@ -497,6 +500,7 @@ class PHTracker(Extension):
         plt.title(f'{var.capitalize()} Over Iterations')
         plt.legend()
         plt.grid(True)
+
         plt.savefig(self.track_dict[var].plot_fname)
         plt.close()
 
