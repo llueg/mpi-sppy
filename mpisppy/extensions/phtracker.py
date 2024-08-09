@@ -144,7 +144,6 @@ class PHTracker(Extension):
                     plot = self.tracker_options.get(f'plot_{t}', False)
                     val = TrackedData(t, self.cylinder_folder, plot, self.verbose)
                     user_fname = self.tracker_options.get(f"{t}_fname", t)
-                    #print(f"Tracking {t} with user_fname {user_fname}")
                     val.initialize_fnames(name=user_fname)
 
                 self.track_dict[t] = val
@@ -257,8 +256,10 @@ class PHTracker(Extension):
         if gather:
             comm = self.opt.comms['ROOT']
             data = comm.gather(data, root=0)
-            data = data[0]
 
+            if self._rank == 0:
+                data = data[0]
+            
         if isinstance(data, dict):
             data['iteration'] = self.curr_iter
         elif isinstance(data, list):
